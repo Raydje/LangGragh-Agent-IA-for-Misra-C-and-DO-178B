@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     mongodb_collection: str = "rules"
 
     # Graph control
-    max_critique_iterations: int = 3
+    max_critique_iterations: int = 4
     confidence_threshold: float = 0.85
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
