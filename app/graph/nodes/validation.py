@@ -1,81 +1,97 @@
+import json
+from langchain_core.messages import SystemMessage, HumanMessage
 from app.models.state import ComplianceState
 from app.services.llm_service import get_llm
 from app.utils import parse_json_response
 
 
-VALIDATION_PROMPT = """You are a DO-178B compliance validation expert. Your task is to
-determine whether the provided artifact (code snippet or requirement) satisfies the
-compliance rules retrieved from the standard.
+def validation_node(state: ComplianceState) -> dict:
+    """
+    Evaluates the provided code snippet against the retrieved MISRA-C 2023 rules.
+    Takes critique feedback into account if this is a subsequent iteration.
+    """
+    print("--- NODE: VALIDATION ---")
 
-## Compliance Rules (from DO-178B):
-{rules_text}
-
-## Artifact Under Review:
-```
-{code_snippet}
-```
-
-## User's Question:
-{query}
-
-{critique_context}
-
-## Instructions:
-1. For each relevant rule, state whether the artifact SATISFIES, PARTIALLY SATISFIES,
-   or DOES NOT SATISFY the rule.
-2. Cite specific rule IDs (e.g., [DO178B-REQ-003]) for every claim.
-3. If the artifact is incomplete or ambiguous, state what is missing.
-4. Provide a confidence score from 0.0 to 1.0 reflecting your certainty.
-
-Respond with a JSON object:
-{{
-    "analysis": "<detailed multi-paragraph compliance analysis>",
-    "is_compliant": <true|false>,
-    "confidence_score": <0.0 to 1.0>,
-    "cited_rules": ["<rule_id_1>", "<rule_id_2>"],
-    "gaps": ["<gap description 1>", "<gap description 2>"]
-}}
-"""
-
-
-async def validation_node(state: ComplianceState) -> dict:
     llm = get_llm(temperature=0.1)
 
-    rules_text = _format_rules(state.get("retrieved_rules", []))
-    code_snippet = state.get("code_snippet", "(No code snippet provided)")
+    code = state.get("code_snippet", "No code provided.")
+    query = state.get("query", "")
+    rules = state.get("retrieved_rules", [])
+    critique_feedback = state.get("critique_feedback", "")
+    iteration = state.get("iteration_count", 0)
 
-    critique_context = ""
-    if state.get("iteration_count", 0) > 0 and state.get("critique_feedback"):
-        critique_context = (
-            f"\n## IMPORTANT - Previous Review Feedback:\n"
-            f"A quality reviewer found issues with your previous analysis. "
-            f"Address these specifically:\n{state['critique_feedback']}\n"
-        )
-
-    prompt = VALIDATION_PROMPT.format(
-        rules_text=rules_text,
-        code_snippet=code_snippet,
-        query=state["query"],
-        critique_context=critique_context,
+    # Format retrieved rules — MISRA-C IDs are either "Dir X.Y" or "Rule X.Y"
+    rules_context = "\n\n".join(
+        [f"Rule ID: {r['rule_id']}\nCategory: {r.get('dal_level', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+         for r in rules]
     )
 
-    response = await llm.ainvoke(prompt)
-    parsed = parse_json_response(response.content)
+    system_prompt = """You are a strict, expert compliance auditor for MISRA-C 2023.
+Your task is to validate the provided C/C++ code against the provided MISRA-C 2023 rules.
+
+MISRA-C 2023 rule IDs follow these formats:
+- Directives: "Dir X.Y" (e.g., "Dir 4.1")
+- Rules: "Rule X.Y" (e.g., "Rule 15.5")
+Categories are: Mandatory, Required, or Advisory.
+
+You MUST respond with a valid JSON object matching this schema exactly:
+{
+  "is_compliant": bool,
+  "validation_result": "string",
+  "confidence_score": float,
+  "cited_rules": ["string"]
+}
+
+Field details:
+- "is_compliant": true only if the code fully satisfies all applicable retrieved rules.
+- "validation_result": detailed explanation of each violation or confirmation of compliance. Reference specific lines when possible.
+- "confidence_score": float between 0.0 and 1.0.
+- "cited_rules": list of MISRA-C 2023 rule IDs used in the evaluation (e.g., ["Rule 15.5", "Dir 4.1"]).
+
+Do not include any text outside the JSON block."""
+
+    critique_section = ""
+    if iteration > 0 and critique_feedback:
+        critique_section = f"""
+Previous Critique Feedback (iteration {iteration}):
+{critique_feedback}
+
+Address all points raised above in your revised evaluation.
+"""
+
+    human_content = f"""User Query: {query}
+
+Retrieved MISRA-C 2023 Rules:
+{rules_context if rules_context else "No specific rules retrieved. Apply general MISRA-C 2023 knowledge strictly relevant to the query."}
+
+Code to Validate:
+```c
+{code}
+```
+{critique_section}
+Respond with the JSON verdict only."""
+
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=human_content),
+    ]
+
+    response = llm.invoke(messages)
+    try:
+        result = parse_json_response(response.content)
+    except (json.JSONDecodeError, ValueError):
+        return {
+            "validation_result": "Validation failed: LLM returned unparseable output.",
+            "is_compliant": False,
+            "confidence_score": 0.0,
+            "cited_rules": [],
+            "iteration_count": iteration + 1,
+        }
 
     return {
-        "validation_result": parsed["analysis"],
-        "is_compliant": parsed["is_compliant"],
-        "confidence_score": parsed["confidence_score"],
-        "cited_rules": parsed["cited_rules"],
+        "validation_result": result.get("validation_result", ""),
+        "is_compliant": result.get("is_compliant", False),
+        "confidence_score": result.get("confidence_score", 0.0),
+        "cited_rules": result.get("cited_rules", []),
+        "iteration_count": iteration + 1,
     }
-
-
-def _format_rules(rules: list[dict]) -> str:
-    parts = []
-    for r in rules:
-        parts.append(
-            f"[{r['rule_id']}] {r['title']}\n"
-            f"  Section: {r['section']} | DAL Level: {r['dal_level']}\n"
-            f"  {r['full_text']}\n"
-        )
-    return "\n".join(parts) if parts else "(No rules retrieved)"
