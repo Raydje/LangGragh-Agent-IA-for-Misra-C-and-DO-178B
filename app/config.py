@@ -5,7 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     # LLM
     gemini_api_key: str
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
 

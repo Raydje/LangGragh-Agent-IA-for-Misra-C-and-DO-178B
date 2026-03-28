@@ -31,8 +31,6 @@ async def rag_node(state: ComplianceState) -> dict[str, Any]:
     )
 
     matches = pinecone_results.get("matches", [])
-    for i, match in enumerate(matches):
-        print(f"  Match {i+1}: ID={match['id']}, Score={match['score']:.4f}, Metadata={match['metadata']}")
     # Extract the IDs and keep track of their relevance scores
     rule_ids = [match["id"] for match in matches]
     scores_map = {match["id"]: match.get("score", 0.0) for match in matches}

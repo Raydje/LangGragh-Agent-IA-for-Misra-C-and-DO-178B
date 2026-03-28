@@ -1,48 +1,60 @@
+from typing import Literal
+from pydantic import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
 from app.models.state import ComplianceState
-from app.services.llm_service import get_llm
-from app.utils import parse_json_response
+from app.services.llm_service import get_structured_llm
 
-
-CLASSIFICATION_PROMPT = """You are an intent classifier for a regulatory compliance system.
-Given a user query about technical standards (e.g., DO-178B, DO-254, ARP4754A),
-classify it into exactly ONE of these intents:
-
-- "search": The user wants to FIND or LOOK UP specific compliance rules,
-  requirements, or sections. They are asking "what does the standard say about X?"
-- "validate": The user wants to CHECK whether a specific code snippet,
-  requirement, or design artifact MEETS a compliance rule. They are providing
-  something to be evaluated against the standard.
-- "explain": The user wants an EXPLANATION or INTERPRETATION of a compliance
-  concept. They are asking "what does X mean?" or "why is X required?"
-
-User query: {query}
-Code snippet provided: {has_code}
-
-Respond with ONLY a JSON object:
-{{"intent": "<search|validate|explain>", "reasoning": "<one sentence explanation>"}}
-"""
-
-
-async def orchestrator_node(state: ComplianceState) -> dict:
-    llm = get_llm(temperature=0.0)
-    has_code = "Yes" if state.get("code_snippet") else "No"
-
-    prompt = CLASSIFICATION_PROMPT.format(
-        query=state["query"],
-        has_code=has_code,
+# 1. Define the desired structured output schema
+class OrchestratorOutput(BaseModel):
+    intent: Literal["search", "validate", "explain"] = Field(
+        description="The classified intent of the user's request."
     )
-    response = await llm.ainvoke(prompt)
-    parsed = parse_json_response(response.content)
+    reasoning: str = Field(
+        description="A brief explanation (1-2 sentences) of why this intent was chosen."
+    )
 
-    intent = parsed["intent"]
-    if state.get("code_snippet") and intent != "validate":
-        intent = "validate"
-        parsed["reasoning"] += " (Overridden to 'validate' because code snippet was provided.)"
-
+# 2. Define the Orchestrator Node function
+def orchestrate(state: ComplianceState) -> dict:
+    """
+    Analyzes the user's query and code snippet to determine the workflow intent.
+    Currently focused entirely on MISRA-C compliance.
+    Updates the state with 'intent' and 'orchestrator_reasoning'.
+    """
+    query = state.get("query", "")
+    code_snippet = state.get("code_snippet", "")
+    
+    # Initialize the structured LLM (temperature=0.0 for deterministic classification)
+    llm = get_structured_llm(OrchestratorOutput, temperature=0.0)
+    
+    # Create the prompt instructing the LLM on how to classify for MISRA-C
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are the intelligent routing orchestrator for a C/C++ static analysis AI agent.
+        Your job is to analyze the user's request regarding the MISRA-C standard and classify it into one of three intents:
+        
+        1. "search": The user is looking for specific MISRA-C rules, guidelines, or documentation. 
+           (e.g., "Find rules about dead code", "What does MISRA say about pointer arithmetic?")
+        2. "validate": The user has provided C/C++ code and wants to check if it complies with MISRA-C rules.
+           (e.g., "Check this C code snippet against MISRA-C:2012", "Does this function violate any MISRA directives?")
+        3. "explain": The user wants a detailed, conceptual explanation of a specific MISRA-C rule or why a practice is banned.
+           (e.g., "Explain why recursion is banned in MISRA", "What is the rationale behind rule 11.4?")
+           
+        Analyze the inputs carefully and output the intent and your reasoning.
+        """),
+        ("human", "User Query: {query}\n\nProvided Code (if any):\n{code}")
+    ])
+    
+    # Chain the prompt and the structured LLM together
+    chain = prompt | llm
+    
+    # Invoke the chain with the current state data
+    result: OrchestratorOutput = chain.invoke({
+        "query": query,
+        "code": code_snippet if code_snippet else "None provided."
+    })
+    
+    # LangGraph nodes must return a dictionary containing the keys of the State to update
     return {
-        "intent": intent,
-        "orchestrator_reasoning": parsed["reasoning"],
-        "standard": state.get("standard", "DO-178B"),
-        "max_iterations": state.get("max_iterations", 3),
-        "iteration_count": 0,
+        "intent": result.intent,
+        "orchestrator_reasoning": result.reasoning,
+        "standard": "MISRA-C" # Explicitly setting the standard in the state
     }

@@ -1,4 +1,3 @@
-import time
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from app.config import get_settings
@@ -34,21 +33,8 @@ class EmbeddingService:
         print(f"Generating embeddings for {len(rules)} rules...")
         
         texts = [rule["full_text"] for rule in rules]
-        all_embeddings = []
-        
-        # We process 90 at a time to stay safely under the 100/minute limit
-        batch_size = 90 
-        for i in range(0, len(texts), batch_size):
-            print(f"  -> Embedding rules {i} to {min(i+batch_size, len(texts))}...")
-            batch_texts = texts[i : i + batch_size]
-            
-            batch_embeddings = self.embeddings.embed_documents(batch_texts)
-            all_embeddings.extend(batch_embeddings)
-            
-            # If there are still more rules to process, we MUST wait for the minute to reset
-            if i + batch_size < len(texts):
-                print("  ⏳ Approaching Free Tier API limit. Sleeping for 60 seconds to reset quota...")
-                time.sleep(60) 
+
+        all_embeddings = self.embeddings.embed_documents(texts)
 
         print("Packaging vectors...")
         

@@ -94,7 +94,7 @@ async def upload_to_mongodb(rules: list[dict]):
 
     print("Connecting to MongoDB Atlas...")
     collection = await get_rules_collection()
-    await create_indexes("section", "rule_number")
+    await create_indexes()
 
     print(f"Preparing to insert/update {len(rules)} rules...")
 

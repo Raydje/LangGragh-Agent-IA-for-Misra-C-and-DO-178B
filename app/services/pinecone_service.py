@@ -39,8 +39,6 @@ async def query_pinecone(
         include_metadata=True,
     )
     print(f"Pinecone query returned {len(results.matches)} matches.")
-    for i, match in enumerate(results.matches):
-        print(f"  Match {i+1}: ID={match.id}, Score={match.score:.4f}, Metadata={match.metadata}")
     return {
         "matches": [
             {
