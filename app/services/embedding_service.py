@@ -4,12 +4,27 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from app.config import get_settings
 from app.services.pinecone_service import upsert_vectors
 
+_service_instance = None
+
+
+def _get_service() -> "EmbeddingService":
+    global _service_instance
+    if _service_instance is None:
+        _service_instance = EmbeddingService()
+    return _service_instance
+
+
+async def get_embedding(text: str) -> list[float]:
+    return await _get_service().embeddings.aembed_query(text)
+
+
 class EmbeddingService:
     def __init__(self):
         settings = get_settings()
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model=settings.gemini_embedding_model,
-            google_api_key=settings.gemini_api_key
+            google_api_key=settings.gemini_api_key,
+            output_dimensionality=settings.embedding_dimensions,
         )
 
     async def embed_and_store(self, rules: list[dict]) -> None:

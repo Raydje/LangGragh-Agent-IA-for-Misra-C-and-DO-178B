@@ -4,6 +4,8 @@ from app.config import get_settings
 _client = None
 _db = None
 
+_INDEX_FIELDS = [("section", 1), ("rule_number", 1)]
+
 
 def _get_db():
     global _client, _db
@@ -27,7 +29,7 @@ async def get_rules_by_ids(rule_ids: list[str]) -> list[dict]:
 
 async def get_rules_by_metadata(filters: dict) -> list[dict]:
     coll = await get_rules_collection()
-    cursor = coll.find(filters, {"_id": 0})
+    cursor = coll.find(filters, {"_id": 0}).hint(_INDEX_FIELDS)
     return await cursor.to_list(length=100)
 
 
@@ -37,9 +39,6 @@ async def insert_rules(rules: list[dict]) -> None:
         await coll.insert_many(rules)
 
 
-async def create_indexes(section: str, rule_number: str) -> None:
+async def create_indexes() -> None:
     coll = await get_rules_collection()
-    await coll.create_index(
-        [(section, 1), (rule_number, 1)], 
-        unique=True
-    )
+    await coll.create_index(_INDEX_FIELDS, unique=True)
