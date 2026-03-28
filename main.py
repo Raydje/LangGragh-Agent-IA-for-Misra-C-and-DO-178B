@@ -1,20 +1,32 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.api.routes import router
 from app.config import get_settings
-
-app = FastAPI(
-    title="DO-178B Compliance Agent",
-    description="Autonomous regulatory compliance analysis using LangGraph multi-agent system",
-    version="0.1.0",
-)
-
-app.include_router(router, prefix="/api/v1")
+from fastapi.responses import RedirectResponse
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Logs configuration on startup to ensure environment variables are loaded."""
     settings = get_settings()
-    print(f"[Startup] Loaded config for standard: DO-178B")
+    print(f"[Startup] Loaded config for standard: DO-178B / MISRA-C")
     print(f"[Startup] Gemini model: {settings.gemini_model}")
     print(f"[Startup] MongoDB: {settings.mongodb_uri}/{settings.mongodb_database}")
     print(f"[Startup] Pinecone index: {settings.pinecone_index_name}")
+    yield
+
+
+# Initialize FastAPI app with metadata for Swagger UI
+app = FastAPI(
+    title="DO-178B & MISRA-C Compliance Agent",
+    description="Autonomous regulatory compliance analysis using a LangGraph multi-agent system.",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
+
+# Include the routes defined in routes.py
+app.include_router(router, prefix="/api/v1")

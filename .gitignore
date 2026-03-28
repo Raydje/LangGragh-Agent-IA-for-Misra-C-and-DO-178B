@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Bruno
+bruno_collection/
+
 # Python virtual environments
 .venv/
 venv/

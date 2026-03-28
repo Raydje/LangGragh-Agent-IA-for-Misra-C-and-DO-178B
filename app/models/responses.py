@@ -1,13 +1,11 @@
 from pydantic import BaseModel
 from typing import Optional
 
-
 class CritiqueDetail(BaseModel):
     iteration: int
     issues_found: list[str]
     suggestion: str
     approved: bool
-
 
 class ComplianceQueryResponse(BaseModel):
     intent: str
@@ -21,12 +19,10 @@ class ComplianceQueryResponse(BaseModel):
     retrieved_rule_ids: list[str] = []
     error: Optional[str] = None
 
-
 class HealthResponse(BaseModel):
     status: str
     mongodb_connected: bool
     pinecone_connected: bool
-
 
 class IngestResponse(BaseModel):
     message: str
