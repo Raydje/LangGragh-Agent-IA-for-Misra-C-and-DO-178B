@@ -16,8 +16,8 @@ async def test_rag_execution():
     # Create a mock LangGraph state
     # We only fill in the fields that rag.py actually uses for now.
     dummy_state: ComplianceState = {
-        "query": "Are goto statements allowed in MISRA-C?",
-        "standard": "MISRA-C",
+        "query": "Are goto statements allowed in MISRA C:2023?",
+        "standard": "MISRA C:2023",
         "code_snippet": "",
         "intent": "search",
         "orchestrator_reasoning": "",

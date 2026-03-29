@@ -96,7 +96,7 @@ async def test_metadata_filter_is_always_misra_c(mock_embed, mock_pinecone, mock
 
     result = await rag_node(_make_state())
 
-    assert result["metadata_filters_applied"] == {"scope": "MISRA-C"}
+    assert result["metadata_filters_applied"] == {"scope": "MISRA C:2023"}
 
 
 @pytest.mark.asyncio
@@ -177,7 +177,7 @@ async def test_rule_standard_is_hardcoded_to_misra_c(mock_embed, mock_pinecone, 
 
     result = await rag_node(_make_state())
 
-    assert result["retrieved_rules"][0]["standard"] == "MISRA-C"
+    assert result["retrieved_rules"][0]["standard"] == "MISRA C:2023"
 
 
 @pytest.mark.asyncio
@@ -253,7 +253,7 @@ async def test_pinecone_called_with_misra_c_filter_and_top_k_5(
     mock_pinecone.assert_called_once_with(
         vector=FAKE_VECTOR,
         top_k=5,
-        filter={"scope": "MISRA-C"},
+        filter={"scope": "MISRA C:2023"},
     )
 
 

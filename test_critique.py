@@ -44,7 +44,7 @@ run(
         "validation_result": (
             "The code violates Rule 15.6. On line 3, the body of the 'if (x > 0)' "
             "statement is not enclosed in braces. A compound-statement (braces) is "
-            "required for all selection-statement bodies under MISRA-C 2023."
+            "required for all selection-statement bodies under MISRA C:2023."
         ),
     },
 )
@@ -93,7 +93,7 @@ run(
         "cited_rules": ["Rule 14.4"],
         "is_compliant": False,
         "validation_result": (
-            "The code is fully compliant with all retrieved MISRA-C 2023 rules."
+            "The code is fully compliant with all retrieved MISRA C:2023 rules."
         ),
     },
 )

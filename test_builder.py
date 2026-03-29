@@ -10,9 +10,9 @@ async def run_end_to_end_test():
     app = build_graph()
 
     # We will simulate a user asking to validate a piece of code
-    # that intentionally violates MISRA-C Rule 15.6 (missing braces)
+    # that intentionally violates MISRA C:2023 Rule 15.6 (missing braces)
     initial_state = {
-        "query": "Check if this C code complies with MISRA-C.",
+        "query": "Check if this C code complies with MISRA C:2023.",
         "code_snippet": """
 int calculate(int x) {
     if (x > 0)
@@ -20,7 +20,7 @@ int calculate(int x) {
     return 0;
 }
         """,
-        "standard": "MISRA-C",
+        "standard": "MISRA C:2023",
         "iteration_count": 0,
         "max_iterations": 3,  # Maximum times the critique loop can run
         "critique_history": [],

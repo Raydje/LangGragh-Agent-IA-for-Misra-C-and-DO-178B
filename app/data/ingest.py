@@ -21,7 +21,7 @@ from app.services.mongodb_service import insert_rules, create_indexes, get_rules
 
 def parse_misra_file(filepath: str) -> list[dict]:
     """
-    Parses the MISRA-C text file and extracts structured metadata.
+    Parses the MISRA C:2023 text file and extracts structured metadata.
     """
     rules = []
     

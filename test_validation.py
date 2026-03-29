@@ -11,7 +11,7 @@ def run_test():
     # 2. Mock a ComplianceState dictionary
     # We'll use a classic MISRA violation: missing braces around an if-statement body (Rule 15.6)
     mock_state = {
-        "query": "Check this code for MISRA-C compliance.",
+        "query": "Check this code for MISRA C:2023 compliance.",
         "code_snippet": """
 int calculate(int x) {
     if (x > 0) 

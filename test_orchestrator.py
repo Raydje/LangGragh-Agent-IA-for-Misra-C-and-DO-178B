@@ -9,27 +9,27 @@ from app.graph.nodes.orchestrator import orchestrate
 from app.models.state import ComplianceState
 
 def run_tests():
-    print("--- Testing Orchestrator Node (MISRA-C) ---\n")
+    print("--- Testing Orchestrator Node (MISRA C:2023) ---\n")
 
     # Test Case 1: Search Intent
     state_search: ComplianceState = {
-        "query": "Find the MISRA-C rule that talks about using goto statements.",
+        "query": "Find the MISRA C:2023 rule that talks about using goto statements.",
         "code_snippet": "",
-        "standard": "MISRA-C"
+        "standard": "MISRA C:2023"
     }
     
     # Test Case 2: Validate Intent
     state_validate: ComplianceState = {
         "query": "Check if this code violates any rules.",
         "code_snippet": "void my_func() { int *ptr = NULL; *ptr = 10; }",
-        "standard": "MISRA-C"
+        "standard": "MISRA C:2023"
     }
 
     # Test Case 3: Explain Intent
     state_explain: ComplianceState = {
-        "query": "Why is dynamic memory allocation like malloc() forbidden in MISRA-C?",
+        "query": "Why is dynamic memory allocation like malloc() forbidden in MISRA C:2023?",
         "code_snippet": "",
-        "standard": "MISRA-C"
+        "standard": "MISRA C:2023"
     }
 
     test_cases = [

@@ -77,15 +77,6 @@ async def query_compliance(request: ComplianceQueryRequest):
         error=result.get("error"),
     )
 
-@router.get("/rules")
-async def list_rules(standard: str = "DO-178B", dal_level: str | None = None):
-    """Retrieve rules from MongoDB based on standard and DAL level."""
-    filters = {"standard": standard}
-    if dal_level:
-        filters["dal_level"] = dal_level
-    rules = await get_rules_by_metadata(filters)
-    return {"rules": rules, "count": len(rules)}
-
 @router.post("/seed", response_model=IngestResponse)
 async def seed_database():
     """Endpoint to trigger the ingestion of rules into MongoDB and Pinecone."""
