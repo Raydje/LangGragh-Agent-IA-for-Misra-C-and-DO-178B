@@ -17,12 +17,13 @@ MyProjectCv/
 │   │
 │   ├── graph/
 │   │   ├── builder.py            # StateGraph wiring + assemble_node (inline)
-│   │   ├── edges.py              # route_after_rag(), should_loop_or_finish()
+│   │   ├── edges.py              # route_after_rag(), should_loop_or_finish(), route_after_critique()
 │   │   └── nodes/
 │   │       ├── orchestrator.py   # Intent classifier (search/validate/explain)
 │   │       ├── rag.py            # Hybrid search: Pinecone dense + MongoDB sparse
 │   │       ├── validation.py     # LLM compliance check (temp=0.1)
-│   │       └── critique.py       # Hallucination reviewer (temp=0.0, 5 criteria)
+│   │       ├── critique.py       # Hallucination reviewer (temp=0.0, 5 criteria)
+│   │       └── remedier.py       # Remediation suggester (temp=0.3): triggered when is_compliant=False
 │   │
 │   ├── services/
 │   │   ├── llm_service.py        # Gemini wrapper
@@ -53,7 +54,8 @@ MyProjectCv/
         │       ├── test_orchestrator.py
         │       ├── test_rag.py
         │       ├── test_validation.py
-        │       └── test_critique.py
+        │       ├── test_critique.py
+        │       └── test_remedier.py
         ├── services/
         │   └── test_mongodb_service.py
         └── utils/

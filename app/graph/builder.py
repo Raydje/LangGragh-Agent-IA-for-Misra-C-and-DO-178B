@@ -7,6 +7,7 @@ from app.graph.nodes.orchestrator import orchestrate
 from app.graph.nodes.rag import rag_node
 from app.graph.nodes.validation import validation_node
 from app.graph.nodes.critique import critique_node
+from app.graph.nodes.remedier import remediate_code
 
 # Import your routing edges
 from app.graph.edges import route_after_rag, should_loop_or_finish
@@ -25,7 +26,7 @@ def assemble_node(state: ComplianceState) -> dict:
         return {"final_response": f"An error occurred: {state['error']}"}
 
     intent = state.get("intent", "search")
-    standard = state.get("standard", "MISRA C:2023")
+    standard = state.get("standard", "")
 
     if intent == "validate":
         compliant = state.get("is_compliant")
@@ -75,11 +76,13 @@ def build_graph() -> CompiledStateGraph:
     workflow.add_node("rag", rag_node)
     workflow.add_node("validation", validation_node)
     workflow.add_node("critique", critique_node)
+    workflow.add_node("remedier", remediate_code)
     workflow.add_node("assemble", assemble_node)
 
     # 3. Define the standard, linear edges
     workflow.add_edge(START, "orchestrator")
     workflow.add_edge("orchestrator", "rag")  # RAG always happens after the orchestrator figures out the intent
+    workflow.add_edge("remedier", "assemble")  # If remediation is needed, it happens after critique and before final assembly
 
     # 4. Define the conditional routing AFTER RAG
     # Depending on the intent, it either goes to validate the code, or skip straight to assembling an answer
@@ -102,9 +105,11 @@ def build_graph() -> CompiledStateGraph:
         should_loop_or_finish,
         {
             "validation_node": "validation",
-            "assemble_node": "assemble"
+            "assemble_node": "assemble",
+            "remedier_node": "remedier"
         }
     )
+    
 
     # 7. End the graph
     workflow.add_edge("assemble", END)

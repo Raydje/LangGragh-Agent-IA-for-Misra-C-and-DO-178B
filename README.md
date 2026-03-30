@@ -1,6 +1,6 @@
 # MISRA C:2023 Compliance Validator
 
-A production-quality **multi-agent system** that parses MISRA C:2023 technical standards and validates C code against them. Built as a GitHub portfolio project demonstrating LLM orchestration, RAG pipelines, and agentic critique loops.
+A production-quality **multi-agent system** that parses MISRA C:2023 technical standards, validates C code against them, and proposes remediated fixes. Built as a GitHub portfolio project demonstrating LLM orchestration, RAG pipelines, agentic critique loops, and automated code remediation.
 
 ---
 
@@ -46,6 +46,8 @@ flowchart TD
             loop_edge{{"should_loop_or_finish\nedge"}}
         end
 
+        remedier["remedier_node\ntemp=0.2\nGenerates MISRA-compliant\nfixed code + explanation"]
+
         assemble["assemble_node\nFormat final_response\nby intent"]
     end
 
@@ -74,13 +76,17 @@ flowchart TD
     validation --> critique
     critique --> loop_edge
 
-    loop_edge -->|"approved = true"| assemble
+    loop_edge -->|"approved & compliant"| assemble
+    loop_edge -->|"approved & not compliant"| remedier
     loop_edge -->|"rejected &\niteration_count < max_iterations"| validation
     loop_edge -->|"rejected &\niteration_count >= max_iterations"| assemble
+
+    remedier --> assemble
 
     orch <-->|"structured output"| gemini
     validation <-->|"temp=0.1"| gemini
     critique <-->|"temp=0.0"| gemini
+    remedier <-->|"temp=0.2"| gemini
 
     assemble --> Response
 
@@ -88,6 +94,7 @@ flowchart TD
     style RAG fill:#1a2e1a,stroke:#4a9d4a,color:#fff
     style API fill:#2e1a1a,stroke:#d94a4a,color:#fff
     style Services fill:#2e2e1a,stroke:#d9c44a,color:#fff
+    style remedier fill:#2e1a2e,stroke:#d94ad9,color:#fff
 ```
 
 ---
@@ -117,7 +124,8 @@ MyProjectCv/
 │   │       ├── orchestrator.py     # Intent classifier
 │   │       ├── rag.py              # Hybrid retrieval
 │   │       ├── validation.py       # MISRA compliance checker
-│   │       └── critique.py         # Hallucination reviewer
+│   │       ├── critique.py         # Hallucination reviewer
+│   │       └── remedier.py         # Code remediation suggester
 │   │
 │   ├── services/
 │   │   ├── llm_service.py          # Gemini LLM wrapper
@@ -137,8 +145,13 @@ MyProjectCv/
 │
 └── tests/
     └── unit/
-        └── graph/nodes/
-            └── test_rag.py
+        └── graph/
+            ├── test_edges.py
+            └── nodes/
+                ├── test_rag.py
+                ├── test_validation.py
+                ├── test_critique.py
+                └── test_remedier.py
 ```
 
 ---
@@ -151,7 +164,7 @@ MyProjectCv/
 | `POST` | `/api/v1/query` | Runs the full LangGraph multi-agent pipeline |
 | `POST` | `/api/v1/seed` | Parses MISRA txt file and ingests into MongoDB + Pinecone |
 
-### Example Query Request
+### Example: Validate a code snippet
 
 ```json
 {
@@ -161,19 +174,36 @@ MyProjectCv/
 }
 ```
 
-### Example Query Response
+### Example: Ask a question (no code snippet)
 
 ```json
 {
-  "query": "Does this code handle memory allocation safely?",
+  "query": "What does MISRA C:2023 say about pointer arithmetic?",
+  "standard": "MISRA C:2023"
+}
+```
+
+When no `code_snippet` is provided, the orchestrator classifies the intent as `search` or `explain` and returns relevant rules directly — skipping validation, critique, and remediation entirely.
+
+### Example Query Response (non-compliant code)
+
+```json
+{
   "intent": "validate",
-  "standard": "MISRA C:2023",
+  "final_response": "Validation Complete.\nStandard: MISRA C:2023\nCompliant: false\n...",
   "is_compliant": false,
   "confidence_score": 0.92,
-  "validation_result": "The code violates MISRA C Rule 21.3...",
   "cited_rules": ["MISRA_21.3"],
-  "final_response": "...",
-  "iteration_count": 1
+  "critique_iterations": 1,
+  "critique_passed": true,
+  "fixed_code_snippet": "void *p = malloc(n);\nif (p == NULL) { /* handle error */ }",
+  "remediation_explanation": "Rule 21.3 (Required): malloc return value was not checked for NULL → added NULL check to handle allocation failure.",
+  "total_tokens_usage": {
+    "prompt_tokens": 1240,
+    "completion_tokens": 380,
+    "total_tokens": 1620,
+    "estimated_cost": 0.000021
+  }
 }
 ```
 
@@ -250,6 +280,9 @@ Checks C code against the retrieved MISRA rules. Returns a structured JSON verdi
 
 ### Critique Node (`temp=0.0`)
 Reviews the validation output against 5 hallucination criteria. Returns `critique_approved` (bool) and `critique_feedback`. If rejected and `iteration_count < max_iterations` (default: 4), the graph loops back to the validation node.
+
+### Remediation Node (`temp=0.2`)
+Triggered only when `critique_approved=True` and `is_compliant=False`. Takes the original non-compliant code, the cited rules (with full rule text), and the validation report, then generates a minimally-modified compliant version. Respects MISRA rule categories (Mandatory / Required / Advisory) and outputs both `fixed_code_snippet` and a per-rule `remediation_explanation`.
 
 ### Assemble Node
 Formats `final_response` based on the resolved intent. Defined inline in `graph/builder.py`.

@@ -21,9 +21,9 @@ def validation_node(state: ComplianceState) -> dict:
     iteration = state.get("iteration_count", 0)
     logger.info("Validation_node", query=query, code_snippet=code, iteration=iteration)
     
-    # Format retrieved rules — MISRA C:2023 IDs are either "Dir X.Y" or "Rule X.Y"
+    # Format retrieved rules — MISRA C:2023 IDs are either "Dir X.Y" or "Rule MISRA_X.Y"
     rules_context = "\n\n".join(
-        [f"Rule ID: {r['rule_id']}\nCategory: {r.get('dal_level', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+        [f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
          for r in rules]
     )
 
@@ -32,7 +32,7 @@ Your task is to validate the provided C/C++ code against the provided MISRA C:20
 
 MISRA C:2023 rule IDs follow these formats:
 - Directives: "Dir X.Y" (e.g., "Dir 4.1")
-- Rules: "Rule X.Y" (e.g., "Rule 15.5")
+- Rules: "Rule MISRA_X.Y" (e.g., "Rule MISRA_15.5")
 Categories are: Mandatory, Required, or Advisory.
 
 You MUST respond with a valid JSON object matching this schema exactly:
@@ -46,6 +46,9 @@ You MUST respond with a valid JSON object matching this schema exactly:
 Field details:
 - "is_compliant": true only if the code fully satisfies all applicable retrieved rules.
 - "validation_result": detailed explanation of each violation or confirmation of compliance. Reference specific lines when possible.
+  IMPORTANT: Every rule you mention in this field MUST be written as "Rule ID (Category)" — for example:
+  "Rule MISRA_15.5 (Required): ..." or "Dir 4.1 (Mandatory): ...".
+  The category (Mandatory, Required, or Advisory) is provided for each rule in the context. Never omit it.
 - "confidence_score": float between 0.0 and 1.0.
 - "cited_rules": list of MISRA C:2023 rule IDs used in the evaluation (e.g., ["Rule MISRA_15.5", "Dir 4.1"]).
 
