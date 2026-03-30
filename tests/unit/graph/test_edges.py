@@ -17,9 +17,14 @@ def test_explain_intent_routes_to_assemble_node():
 
 # --- should_loop_or_finish ---
 
-def test_approved_critique_goes_to_assemble():
-    state = {"critique_approved": True, "iteration_count": 1, "max_iterations": 4}
+def test_approved_compliant_goes_to_assemble():
+    state = {"critique_approved": True, "is_compliant": True, "iteration_count": 1, "max_iterations": 4}
     assert should_loop_or_finish(state) == "assemble_node"
+
+
+def test_approved_non_compliant_goes_to_remedier():
+    state = {"critique_approved": True, "is_compliant": False, "iteration_count": 1, "max_iterations": 4}
+    assert should_loop_or_finish(state) == "remedier_node"
 
 
 def test_rejected_under_max_loops_back_to_validation():

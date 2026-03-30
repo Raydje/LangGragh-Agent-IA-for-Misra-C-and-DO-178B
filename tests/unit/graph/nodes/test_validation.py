@@ -23,7 +23,7 @@ def _base_state(**overrides) -> dict:
                 "rule_id": "MISRA_21.3",
                 "title": "Memory allocation",
                 "full_text": "The memory allocation and deallocation functions...",
-                "dal_level": "Required",
+                "category": "Required",
             }
         ],
         "critique_feedback": "",

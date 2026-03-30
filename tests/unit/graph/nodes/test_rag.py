@@ -32,14 +32,14 @@ def _mongo_doc(
     rule_id: str,
     *,
     section: str = "1.1",
-    dal_level: str = "N/A",
+    category: str = "N/A",
     title: str = "",
     full_text: str = "some rule text",
 ) -> dict:
     return {
         "rule_id": rule_id,
         "section": section,
-        "dal_level": dal_level,
+        "category": category,
         "title": title,
         "full_text": full_text,
     }
@@ -219,7 +219,7 @@ async def test_missing_optional_mongo_fields_use_defaults(
 
     rule = result["retrieved_rules"][0]
     assert rule["section"] == ""
-    assert rule["dal_level"] == "N/A"
+    assert rule["category"] == "N/A"
     assert rule["title"] == "Rule MISRA-R1"
     assert rule["full_text"] == ""
 

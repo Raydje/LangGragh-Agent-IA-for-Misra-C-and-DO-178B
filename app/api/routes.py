@@ -78,6 +78,9 @@ async def query_compliance(
         critique_history=result.get("critique_history", []),
         retrieved_rule_ids=[r.get("rule_id", "") for r in result.get("retrieved_rules", [])],
         error=result.get("error"),
+        fixed_code_snippet=result.get("fixed_code_snippet"),
+        remediation_explanation=result.get("remediation_explanation"),
+
         # Metadata
         total_tokens_usage=MetadataUsage(
             prompt_tokens=result.get("prompt_tokens", 0),
@@ -86,6 +89,7 @@ async def query_compliance(
             orchestrator_tokens=result.get("orchestrator_tokens", 0),
             validation_tokens=result.get("validation_tokens", 0),
             critique_tokens=result.get("critique_tokens", 0),
+            remediation_tokens=result.get("remediation_tokens", 0),
             estimated_cost=result.get("estimated_cost", 0.0),
         ),
     )

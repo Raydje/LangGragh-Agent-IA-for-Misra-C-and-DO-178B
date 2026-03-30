@@ -1,7 +1,7 @@
 # Project: Multi-Agent Compliance Validator
 
 ## Goal
-Production-quality multi-agent system that parses technical standards (MISRA C:2023) and validates C code against them. GitHub CV portfolio project.
+Production-quality multi-agent system that parses technical standards (MISRA C:2023), validates C code against then propose a solutin. GitHub CV portfolio project.
 
 **Constraints:** Free or minimal-cost services only.
 

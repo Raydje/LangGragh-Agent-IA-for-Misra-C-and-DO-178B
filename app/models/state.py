@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TypedDict, Annotated, Literal
+from typing import Optional, TypedDict, Annotated, Literal
 import operator
 
 
@@ -7,7 +7,7 @@ class RetrievedRule(TypedDict):
     rule_id: str
     standard: str
     section: str
-    dal_level: str
+    category: str
     title: str
     full_text: str
     relevance_score: float
@@ -47,6 +47,11 @@ class ComplianceState(TypedDict):
     max_iterations: int
     critique_history: Annotated[list[CritiqueEntry], operator.add]
     
+    # Remediation
+    fixed_code_snippet: str
+    remediation_explanation: str
+
+    
     # Metadata
     prompt_tokens: Annotated[int, operator.add]
     completion_tokens: Annotated[int, operator.add]
@@ -54,6 +59,7 @@ class ComplianceState(TypedDict):
     orchestrator_tokens: Annotated[int, operator.add]
     validation_tokens: Annotated[int, operator.add]
     critique_tokens: Annotated[int, operator.add]
+    remediation_tokens: Annotated[int, operator.add]
     estimated_cost: Annotated[float, operator.add]
     
 

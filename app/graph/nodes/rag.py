@@ -51,7 +51,7 @@ async def rag_node(state: ComplianceState) -> dict[str, Any]:
                 "rule_id": r_id,
                 "standard": "MISRA C:2023", # Hardcoded for now
                 "section": doc.get("section", ""),
-                "dal_level": doc.get("dal_level", "N/A"), # Mostly a DO-178B concept, kept for State compatibility
+                "category": doc.get("category", "N/A"),
                 "title": doc.get("title", f"Rule {r_id}"),
                 "full_text": doc.get("full_text", doc.get("text", "")),
                 "relevance_score": scores_map.get(r_id, 0.0)

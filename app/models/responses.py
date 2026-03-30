@@ -13,6 +13,7 @@ class MetadataUsage(BaseModel):
     orchestrator_tokens: Optional[int] = None
     validation_tokens: Optional[int] = None
     critique_tokens: Optional[int] = None
+    remediation_tokens: Optional[int] = None
     estimated_cost: Optional[float] = None
     
 
@@ -27,6 +28,8 @@ class ComplianceQueryResponse(BaseModel):
     critique_history: list[CritiqueDetail] = []
     retrieved_rule_ids: list[str] = []
     error: Optional[str] = None
+    fixed_code_snippet: Optional[str] = None
+    remediation_explanation: Optional[str] = None
     # Metadata
     total_tokens_usage: MetadataUsage
     

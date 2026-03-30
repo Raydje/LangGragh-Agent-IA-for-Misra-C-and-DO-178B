@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     max_critique_iterations: int = 4
     confidence_threshold: float = 0.85
 
+    # CORS
+    cors_allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8501", "http://localhost:8080"]
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

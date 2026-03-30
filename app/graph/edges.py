@@ -13,7 +13,7 @@ def should_loop_or_finish(state: ComplianceState) -> str:
     Evaluates the critique's output to decide whether to refine the validation or finish.
     """
     if state["critique_approved"]:
-        return "assemble_node"
+        return "remedier_node" if not state["is_compliant"] else "assemble_node"
     if state["iteration_count"] < state["max_iterations"]:
         return "validation_node"
     return "assemble_node"
