@@ -95,7 +95,7 @@ Respond with the JSON verdict only."""
             "estimated_cost": 0.0,
         }
     # Track validation tokens used
-    validation_usage = response.usage_metadata if hasattr(response, "usage_metadata") else {}
+    validation_usage = getattr(response, "usage_metadata", None) or {}
     _input_tokens = validation_usage.get("input_tokens", 0)
     _output_tokens = validation_usage.get("output_tokens", 0)
     logger.info("Validation_node_result", validation_result=result.get("validation_result", ""), is_compliant=result.get("is_compliant", False), confidence_score=result.get("confidence_score", 0.0), cited_rules=result.get("cited_rules", []), input_tokens=_input_tokens, output_tokens=_output_tokens)

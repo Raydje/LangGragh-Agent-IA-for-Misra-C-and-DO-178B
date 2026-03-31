@@ -55,15 +55,31 @@ def orchestrate(state: ComplianceState) -> dict:
         "query": query,
         "code": code_snippet if code_snippet else "None provided."
     })
-    result: OrchestratorOutput = raw_result["parsed"]
+
+    try:
+        result: OrchestratorOutput = raw_result["parsed"]
+        if result is None:
+            raise ValueError("Structured output parsing returned None")
+    except (KeyError, ValueError, AttributeError) as e:
+        logger.error("Orchestrator failed to parse structured output.", error=str(e))
+        return {
+            "intent": "search",
+            "orchestrator_reasoning": "Orchestrator failed to parse LLM output; defaulting to search.",
+            "standard": state.get("standard", "MISRA C:2023"),
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "orchestrator_tokens": 0,
+            "estimated_cost": 0.0,
+        }
 
     # Extract token usage from the raw AIMessage (usage_metadata uses input_tokens/output_tokens)
-    usage = raw_result["raw"].usage_metadata or {}
+    usage = getattr(raw_result.get("raw"), "usage_metadata", None) or {}
     _input_tokens = usage.get("input_tokens", 0)
     _output_tokens = usage.get("output_tokens", 0)
     logger.info("Orchestrator_node_result", intent=result.intent, reasoning=result.reasoning, input_tokens=_input_tokens, output_tokens=_output_tokens)
     logger.info("Orchestrator_node_cost", estimated_cost=calculate_gemini_cost(_input_tokens, _output_tokens))
-    
+
     # LangGraph nodes must return a dictionary containing the keys of the State to update
     return {
         "intent": result.intent,

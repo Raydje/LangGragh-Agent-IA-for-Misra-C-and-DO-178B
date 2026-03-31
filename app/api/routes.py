@@ -71,7 +71,7 @@ async def query_compliance(
         config = {"configurable": {"thread_id": thread_id}}
         result = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Unable to process query may gemini is down}")
 
     return _build_response(thread_id, result)
 

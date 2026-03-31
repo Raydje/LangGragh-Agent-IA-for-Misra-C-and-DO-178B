@@ -1,3 +1,4 @@
+import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models.state import ComplianceState
 from app.services.llm_service import get_llm
@@ -85,7 +86,7 @@ Respond with the JSON object only."""
         result = parse_json_response(response.content)
         fixed_code = result.get("fixed_code_snippet", "")
         explanation = result.get("remediation_explanation", "")
-    except (ValueError, KeyError) as e:
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
         logger.error("Remediation node failed to parse JSON.", error=str(e))
         return {
             "fixed_code_snippet": code_snippet,
@@ -97,7 +98,7 @@ Respond with the JSON object only."""
             "estimated_cost": 0.0,
         }
 
-    remediation_usage = response.usage_metadata if hasattr(response, "usage_metadata") else {}
+    remediation_usage = getattr(response, "usage_metadata", None) or {}
     _input_tokens = remediation_usage.get("input_tokens", 0)
     _output_tokens = remediation_usage.get("output_tokens", 0)
     logger.info("Remediation_node_result", fixed_code_snippet=fixed_code, input_tokens=_input_tokens, output_tokens=_output_tokens)

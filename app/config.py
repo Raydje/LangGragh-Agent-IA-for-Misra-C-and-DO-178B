@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     mongodb_database: str = "compliance_db"
     mongodb_collection: str = "rules"
 
+    # Input validation
+    max_input_length: int = 3000
+
     # Graph control
     max_critique_iterations: int = 4
     confidence_threshold: float = 0.85

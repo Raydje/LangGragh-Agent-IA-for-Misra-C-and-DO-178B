@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info(f"[Startup] Loaded config for standard: MISRA C:2023")
     logger.info(f"[Startup] Gemini model: {settings.gemini_model}")
-    logger.info(f"[Startup] MongoDB: {settings.mongodb_uri}/{settings.mongodb_database}")
+    logger.info(f"[Startup] MongoDB: ********/{settings.mongodb_database}")
     logger.info(f"[Startup] Pinecone index: {settings.pinecone_index_name}")
     conn = await aiosqlite.connect("checkpoints.sqlite")
     app.state.graph = await build_graph(conn)

@@ -86,7 +86,7 @@ Based on the 5 criteria, generate your JSON verdict."""
             "approved": False,
         }
     #Track critique tokens used
-    critique_usage = response.usage_metadata if hasattr(response, "usage_metadata") else {}
+    critique_usage = getattr(response, "usage_metadata", None) or {}
     _input_tokens = critique_usage.get("input_tokens", 0)
     _output_tokens = critique_usage.get("output_tokens", 0)
     logger.info("Critique_node_result", approved=approved, feedback=feedback, input_tokens=_input_tokens, output_tokens=_output_tokens)
