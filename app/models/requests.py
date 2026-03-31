@@ -7,6 +7,9 @@ class ComplianceQueryRequest(BaseModel):
         None, description="Code or requirement text to validate"
     )
     standard: str = Field("MISRA C:2023", description="Technical standard to query against")
+    thread_id: Optional[str] = Field(
+        None, description="Optional thread ID to continue an existing conversation; a new UUID is generated if omitted"
+    )
 
     model_config = {
         "json_schema_extra": {

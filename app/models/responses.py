@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 
 class CritiqueDetail(BaseModel):
     iteration: int
@@ -18,6 +18,7 @@ class MetadataUsage(BaseModel):
     
 
 class ComplianceQueryResponse(BaseModel):
+    thread_id: str
     intent: str
     final_response: str
     is_compliant: Optional[bool] = None
@@ -43,3 +44,14 @@ class IngestResponse(BaseModel):
     message: str
     rules_ingested: int
     vectors_upserted: int
+
+
+class ThreadHistoryEntry(BaseModel):
+    checkpoint_id: Optional[str]
+    next_node: tuple
+    values: dict[str, Any]
+
+
+class ThreadHistoryResponse(BaseModel):
+    thread_id: str
+    history: list[ThreadHistoryEntry]

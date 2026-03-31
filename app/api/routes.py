@@ -1,15 +1,19 @@
+import logging
 import uuid
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException, Path
 from app.models.requests import ComplianceQueryRequest
 from app.models.responses import (
     ComplianceQueryResponse,
     HealthResponse,
     IngestResponse,
-    MetadataUsage,  
+    MetadataUsage,
+    ThreadHistoryEntry,
+    ThreadHistoryResponse,
 )
 from app.api.dependencies import get_compiled_graph, get_mongo_db, get_pinecone_index
 from app.config import get_settings
 from app.data.ingest import main as ingest
+from app.utils import logger
 
 router = APIRouter()
 settings = get_settings()
@@ -62,14 +66,85 @@ async def query_compliance(
     }
 
     try:
-        # Run the graph asynchronously with a unique thread ID for tracking
-        config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+        # Use caller-supplied thread_id for conversation continuity, or mint a new one
+        thread_id = request.thread_id or str(uuid.uuid4())
+        config = {"configurable": {"thread_id": thread_id}}
         result = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Map the resulting state to our Pydantic response model
+    return _build_response(thread_id, result)
+
+@router.post("/seed", response_model=IngestResponse)
+async def seed_database():
+    """Endpoint to trigger the ingestion of rules into MongoDB and Pinecone."""
+    result = await ingest()
+    return IngestResponse(
+        message="Seed data ingested successfully",
+        rules_ingested=result.get("rules_ingested", 0),
+        vectors_upserted=result.get("vectors_upserted", 0),
+    )
+
+@router.post("/replay/{thread_id}/{checkpoint_id}", response_model=ComplianceQueryResponse)
+async def replay_from_checkpoint(
+    thread_id: str = Path(..., description="Thread ID of the session to replay"),
+    checkpoint_id: str = Path(..., description="Checkpoint ID to fork execution from"),
+    graph=Depends(get_compiled_graph),
+):
+    """
+    Forks graph execution from a specific SQLite-backed checkpoint.
+    Loads the state saved at checkpoint_id and re-runs from that node forward.
+    """
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id,
+        }
+    }
+
+    # Validate the checkpoint exists before attempting replay
+    checkpoint_state = await graph.aget_state(config)
+    if not checkpoint_state or not checkpoint_state.values:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Checkpoint '{checkpoint_id}' not found for thread '{thread_id}'",
+        )
+
+    try:
+        # None input signals LangGraph to resume from the checkpoint's saved state
+        result = await graph.ainvoke(None, config=config)
+    except Exception as e:
+        logger.exception("Replay failed for thread=%s checkpoint=%s", thread_id, checkpoint_id)
+        raise HTTPException(status_code=500, detail=f"Replay failed: {e}")
+
+    return _build_response(thread_id, result)
+
+@router.get("/history/{thread_id}", response_model=ThreadHistoryResponse)
+async def get_thread_history(
+    thread_id: str,
+    graph=Depends(get_compiled_graph)
+):
+    """Retrieves all checkpoint snapshots for a thread, newest-to-oldest (for debugging)."""
+    config = {"configurable": {"thread_id": thread_id}}
+    history: list[ThreadHistoryEntry] = []
+
+    async for state in graph.aget_state_history(config):
+        history.append(ThreadHistoryEntry(
+            checkpoint_id=state.config["configurable"].get("checkpoint_id"),
+            next_node=state.next,
+            values={k: v for k, v in state.values.items() if k != "code_snippet"},
+        ))
+
+    if not history:
+        raise HTTPException(status_code=404, detail=f"No history found for thread_id '{thread_id}'")
+
+    return ThreadHistoryResponse(thread_id=thread_id, history=history)
+
+
+def _build_response(thread_id: str, result: dict) -> ComplianceQueryResponse:
+    """Maps a raw LangGraph state dict to the API response model."""
     return ComplianceQueryResponse(
+        thread_id=thread_id,
         intent=result.get("intent", "unknown"),
         final_response=result.get("final_response", ""),
         is_compliant=result.get("is_compliant"),
@@ -82,8 +157,6 @@ async def query_compliance(
         error=result.get("error"),
         fixed_code_snippet=result.get("fixed_code_snippet"),
         remediation_explanation=result.get("remediation_explanation"),
-
-        # Metadata
         total_tokens_usage=MetadataUsage(
             prompt_tokens=result.get("prompt_tokens", 0),
             completion_tokens=result.get("completion_tokens", 0),
@@ -94,14 +167,4 @@ async def query_compliance(
             remediation_tokens=result.get("remediation_tokens", 0),
             estimated_cost=result.get("estimated_cost", 0.0),
         ),
-    )
-
-@router.post("/seed", response_model=IngestResponse)
-async def seed_database():
-    """Endpoint to trigger the ingestion of rules into MongoDB and Pinecone."""
-    result = await ingest()
-    return IngestResponse(
-        message="Seed data ingested successfully",
-        rules_ingested=result.get("rules_ingested", 0),
-        vectors_upserted=result.get("vectors_upserted", 0),
     )
