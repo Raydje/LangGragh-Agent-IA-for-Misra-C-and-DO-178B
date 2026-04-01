@@ -43,12 +43,3 @@ class ComplianceQueryRequest(BaseModel):
             }
         }
     }
-
-class IngestRuleRequest(BaseModel):
-    rule_id: str
-    standard: str
-    section: str
-    dal_level: str = Field(..., pattern="^[A-E]$")
-    title: str
-    full_text: str
-    keywords: list[str] = []

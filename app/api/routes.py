@@ -16,7 +16,6 @@ from app.data.ingest import main as ingest
 from app.utils import logger
 
 router = APIRouter()
-settings = get_settings()
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check(
@@ -54,7 +53,7 @@ async def query_compliance(
     graph=Depends(get_compiled_graph),
 ):
     """Main endpoint to trigger the LangGraph multi-agent compliance check."""
-
+    settings = get_settings()
     # Initialize the LangGraph State
     initial_state = {
         "query": request.query,
