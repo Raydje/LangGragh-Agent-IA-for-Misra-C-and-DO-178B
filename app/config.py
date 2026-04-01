@@ -20,10 +20,11 @@ class Settings(BaseSettings):
     pinecone_cloud: str = "aws"
     pinecone_region: str = "us-east-1"
 
-    # MongoDB
+    # MongoDB for MISRA rules storage
     mongodb_uri: str
     mongodb_database: str = "compliance_db"
     mongodb_collection: str = "rules"
+    mongodb_checkpoints_collection: str = "checkpoints"
 
     # Input validation
     max_input_length: int = 3000

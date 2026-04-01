@@ -1,11 +1,14 @@
 import re
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+from pymongo import MongoClient
+from pymongo.collection import Collection
 from app.config import get_settings
 
 _INDEX_FIELDS = [("rule_type", 1), ("section", 1), ("rule_number", 1)]
 _ID_RE = re.compile(r'^MISRA_(RULE|DIR)_(\d+)\.(\d+)$')
 
 _service: "MongoDBService | None" = None
+_service_checkers: "MongoDBCheckpointService | None" = None
 
 
 def get_mongodb_service() -> "MongoDBService":
@@ -14,7 +17,24 @@ def get_mongodb_service() -> "MongoDBService":
         _service = MongoDBService()
     return _service
 
+def get_mongodb_checkpoint_service() -> "MongoDBCheckpointService":
+    global _service_checkers
+    if _service_checkers is None:
+        _service_checkers = MongoDBCheckpointService()
+    return _service_checkers
 
+# Sync pymongo client — MongoDBSaver (langgraph-checkpoint-mongodb) requires pymongo, not Motor.
+class MongoDBCheckpointService:
+    def __init__(self) -> None:
+        settings = get_settings()
+        self.client = MongoClient(settings.mongodb_uri)
+        self.db = self.client[settings.mongodb_database]
+        self.collection: Collection = self.db[settings.mongodb_checkpoints_collection]
+
+    def close(self) -> None:
+        self.client.close()
+
+# MongoDB service for MISRA rules storage and retrieval
 class MongoDBService:
     def __init__(self) -> None:
         settings = get_settings()

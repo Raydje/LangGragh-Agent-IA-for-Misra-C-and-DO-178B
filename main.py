@@ -6,10 +6,9 @@ from app.api.routes import router
 from app.config import get_settings
 from app.utils import logger
 from app.graph.builder import build_graph
-from app.services.mongodb_service import get_mongodb_service
+from app.services.mongodb_service import get_mongodb_service, get_mongodb_checkpoint_service
 from app.services.pinecone_service import get_pinecone_service
-import aiosqlite
-
+from langgraph.checkpoint.mongodb import MongoDBSaver
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,19 +19,22 @@ async def lifespan(app: FastAPI):
     logger.info(f"[Startup] MongoDB: ********/{settings.mongodb_database}")
     logger.info(f"[Startup] Pinecone index: {settings.pinecone_index_name}")
 
-    # Eager init: creates module-level singletons now, not on first request.
     # app.state holds the same reference — used by route dependencies.
     app.state.mongodb = get_mongodb_service()
     app.state.pinecone = get_pinecone_service()
+    app.state.mongodb_checkpoint = get_mongodb_checkpoint_service()
 
-    conn = await aiosqlite.connect("checkpoints.sqlite")
-    app.state.graph = await build_graph(conn)
+    checkpointer = MongoDBSaver(app.state.mongodb_checkpoint.client,
+                                db_name=app.state.mongodb_checkpoint.db.name,
+                                collection=app.state.mongodb_checkpoint.collection.name)
+    app.state.graph = await build_graph(checkpointer=checkpointer)
 
     yield
 
     # --- Shutdown ---
-    conn.close()
     app.state.mongodb.close()
+    app.state.pinecone.index.close()
+    app.state.mongodb_checkpoint.close()
 
 
 # Initialize FastAPI app with metadata for Swagger UI
