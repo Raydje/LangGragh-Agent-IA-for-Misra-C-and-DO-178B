@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from app.api.routes import router
+from app.api.v1.routes import router
 from app.auth.router import auth_router
 from app.config import get_settings
 from app.utils import logger
