@@ -181,8 +181,18 @@ LangGragh-Agent-IA-for-Misra-C/
 │   │   └── mongodb_service.py           # Async Motor CRUD (rules) + sync pymongo (checkpoints)
 │   │
 │   ├── api/
-│   │   ├── routes.py                    # /health, /query, /seed, /replay, /history
-│   │   └── dependencies.py             # get_compiled_graph (from app.state), DB deps
+│   │   ├── routes.py                    # (legacy entry-point, delegates to v1)
+│   │   ├── dependencies.py             # get_compiled_graph (from app.state), DB deps, rate limiter
+│   │   └── v1/
+│   │       ├── routes.py                # /health, /query, /seed, /replay, /history
+│   │       ├── requests.py              # ComplianceQueryRequest (v1 schema)
+│   │       └── responses.py             # ComplianceQueryResponse, HealthResponse, etc. (v1 schema)
+│   │
+│   ├── auth/
+│   │   ├── models.py                    # UserCreate, Principal, TokenResponse, APIKeyResponse, etc.
+│   │   ├── service.py                   # bcrypt, JWT (HS256), API key generation/verification
+│   │   ├── dependencies.py             # get_current_principal — dual JWT/API-key resolver
+│   │   └── router.py                    # /auth/register, /token, /refresh, /api-keys CRUD
 │   │
 │   └── data/
 │       └── ingest.py                    # MISRA parser → MongoDB + Pinecone ingestion
@@ -214,15 +224,21 @@ LangGragh-Agent-IA-for-Misra-C/
 
 ## API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/health` | Pings MongoDB and Pinecone; returns `healthy` or `degraded` |
-| `POST` | `/api/v1/query` | Runs the full LangGraph multi-agent pipeline |
-| `POST` | `/api/v1/seed` | Parses MISRA txt file and ingests into MongoDB + Pinecone |
-| `POST` | `/api/v1/replay/{thread_id}/{checkpoint_id}` | Re-executes the graph from a specific checkpoint (Time Travel) |
-| `GET` | `/api/v1/history/{thread_id}` | Returns all checkpoint snapshots for a session |
+| Method | Path | Auth Required | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/health` | No | Pings MongoDB and Pinecone; returns `healthy` or `degraded` |
+| `POST` | `/api/v1/query` | Yes (`query:read`) | Runs the full LangGraph multi-agent pipeline |
+| `POST` | `/api/v1/seed` | Yes (`admin:seed`) | Parses MISRA txt file and ingests into MongoDB + Pinecone |
+| `POST` | `/api/v1/replay/{thread_id}/{checkpoint_id}` | Yes (`admin:replay`) | Re-executes the graph from a specific checkpoint (Time Travel) |
+| `GET` | `/api/v1/history/{thread_id}` | Yes (`query:read`) | Returns all checkpoint snapshots for a session |
+| `POST` | `/api/v1/auth/register` | No | Create a user account (optionally with admin scopes) |
+| `POST` | `/api/v1/auth/token` | No | OAuth2 password flow — returns access + refresh token pair |
+| `POST` | `/api/v1/auth/refresh` | No | Rotate a refresh token — revoke old, issue new pair |
+| `POST` | `/api/v1/auth/api-keys` | Yes | Generate a new API key scoped to caller's permissions |
+| `GET` | `/api/v1/auth/api-keys` | Yes | List all active API keys for the authenticated user |
+| `DELETE` | `/api/v1/auth/api-keys/{key_id}` | Yes | Revoke (soft-delete) an API key |
 
-Swagger UI is available at `http://localhost:8000/docs` (root `/` redirects there).
+Swagger UI is available at `http://localhost:8000/docs` (root `/` redirects there). The "Authorize" button in Swagger posts to `/api/v1/auth/token` automatically.
 
 ### Example: Validate a code snippet
 
@@ -278,6 +294,84 @@ When no `code_snippet` is provided, the orchestrator classifies the intent as `s
     "estimated_cost": 0.000021
   }
 }
+```
+
+---
+
+## Authentication
+
+All inference and admin endpoints are protected by a dual-token auth system. The same `Authorization: Bearer <token>` header accepts both JWTs and API keys — the resolver detects which is being used by the `ak_` prefix.
+
+### Auth methods
+
+| Method | Format | Use case |
+|---|---|---|
+| JWT access token | Standard Bearer JWT (HS256) | Interactive clients, Swagger UI |
+| API key | `ak_<key_id>_<secret>` | Headless scripts, CI pipelines, integrations |
+
+### Scope catalogue
+
+| Scope | Grants access to |
+|---|---|
+| `query:read` | `POST /query`, `GET /history`, API key management |
+| `admin:seed` | `POST /seed` |
+| `admin:replay` | `POST /replay` |
+| `admin:all` | Wildcard — satisfies any scope check |
+
+### Quick start
+
+```bash
+# 1. Register (standard account — query:read scope)
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "s3cure!pw"}'
+
+# 1b. Register with full admin scopes (requires ADMIN_REGISTRATION_TOKEN set in .env)
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "s3cure!pw", "admin_token": "<ADMIN_REGISTRATION_TOKEN>"}'
+
+# 2. Get tokens (OAuth2 password flow — use email as username)
+curl -X POST http://localhost:8000/api/v1/auth/token \
+  -d 'username=you@example.com&password=s3cure!pw'
+# → {"access_token": "eyJ...", "refresh_token": "eyJ...", "expires_in": 1800}
+
+# 3. Call a protected endpoint
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Is malloc safe here?", "code_snippet": "char *p = malloc(n);"}'
+
+# 4. Generate an API key (scopes capped to your own account's scopes)
+curl -X POST http://localhost:8000/api/v1/auth/api-keys \
+  -H "Authorization: Bearer eyJ..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "ci-pipeline", "scopes": ["query:read"]}'
+# → {"key_id": "...", "full_key": "ak_...", ...}  ← shown once, store securely
+
+# 5. Use the API key directly (no login flow needed)
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Authorization: Bearer ak_..." \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Check this code", "code_snippet": "int x = 0/0;"}'
+```
+
+### Security properties
+
+- **Passwords** — bcrypt with SHA-256 pre-hash (avoids bcrypt's 72-byte truncation)
+- **API key secrets** — bcrypt-hashed at creation; the `full_key` is shown once and never stored
+- **API key lookup** — `ak_<key_id>` prefix enables O(1) DB lookup before the expensive bcrypt verify
+- **Refresh token rotation** — each `/refresh` call revokes the old token atomically; a stolen token can only be used once
+- **Anti-privilege escalation** — API keys cannot be created with scopes the issuing account does not hold
+- **JWT fields** — `sub` (user_id), `email`, `scopes`, `exp`, `type: "access"|"refresh"`
+
+### New env variables (auth)
+
+```env
+JWT_SECRET_KEY=changeme-in-production     # HS256 signing key
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+ADMIN_REGISTRATION_TOKEN=                 # empty = admin self-registration disabled
 ```
 
 ---
@@ -478,6 +572,12 @@ REMEDIATION_TEMPERATURE=0.2
 
 # CORS
 CORS_ALLOWED_ORIGINS=["http://localhost:3000","http://localhost:8501","http://localhost:8080"]
+
+# Auth (JWT + API keys)
+JWT_SECRET_KEY=changeme-in-production
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+ADMIN_REGISTRATION_TOKEN=           # empty = admin self-registration disabled
 ```
 
 ### 3. Start the server
