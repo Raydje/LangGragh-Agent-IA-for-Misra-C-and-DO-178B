@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from app.models_pricing import models_pricing
@@ -9,10 +10,19 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
-    
+
     # Pricing dollar per 1M tokens (Standard Google AI Studio Pay-as-you-go)
-    gemini_2_5_flash_input_cost_per_1m: float = models_pricing[gemini_model][0]
-    gemini_2_5_flash_output_cost_per_1m: float = models_pricing[gemini_model][1]
+    # Populated at runtime by set_model_pricing based on the active gemini_model
+    gemini_2_5_flash_input_cost_per_1m: float = 0.0
+    gemini_2_5_flash_output_cost_per_1m: float = 0.0
+
+    @model_validator(mode="after")
+    def set_model_pricing(self) -> "Settings":
+        fallback = models_pricing.get("gemini-2.5-flash", [0.0, 0.0])
+        pricing = models_pricing.get(self.gemini_model, fallback)
+        self.gemini_2_5_flash_input_cost_per_1m = pricing[0]
+        self.gemini_2_5_flash_output_cost_per_1m = pricing[1]
+        return self
     
     # Pinecone
     pinecone_api_key: str

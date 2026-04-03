@@ -1,4 +1,3 @@
-import logging
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Path
 from app.models.requests import ComplianceQueryRequest
@@ -70,7 +69,7 @@ async def query_compliance(
         config = {"configurable": {"thread_id": thread_id}}
         result = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Unable to process query maybe gemini is down")
+        raise HTTPException(status_code=500, detail="Unable to process query. Please try again later or use health check endpoints.")
 
     return _build_response(thread_id, result)
 
