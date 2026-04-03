@@ -277,21 +277,42 @@ When no `code_snippet` is provided, the orchestrator classifies the intent as `s
 
 ```json
 {
+  "thread_id": "13b4b917-2198-430b-96e4-95b8f17d1b3c",
   "intent": "validate",
-  "thread_id": "550e8400-e29b-41d4-a716-446655440000",
-  "final_response": "Validation Complete.\nStandard: MISRA C:2023\nCompliant: false\n...",
+  "final_response": "Validation Complete.\nStandard: MISRA-C\nCompliant: False\nConfidence: 100%\nCited rules: Rule MISRA_RULE_1.3\nDetails: Rule MISRA_RULE_1.3 (Required): The return value of 'malloc' on line 10 is not checked. If 'malloc' fails and returns a NULL pointer, any subsequent attempt to dereference this pointer would result in undefined behavior. In a safety-critical flight controller, unhandled memory allocation failures can lead to system crashes, unpredictable behavior, or a failure to enter a safe state, which is extremely dangerous. Fix: Always check the return value of 'malloc' and handle potential allocation failures gracefully, for example, by setting a system fault code or entering a safe operational mode. For instance: 'void* ptr = malloc(100); if (ptr == NULL) { system_fault_code = 1; /* Handle error */ }'.\nRule MISRA_RULE_1.3 (Required): The memory allocated by 'malloc' on line 10 is never freed. This constitutes a memory leak. In a long-running embedded system like a flight controller, repeated memory leaks can exhaust the available memory, leading to system instability, unexpected behavior, or a complete system failure. This is a critical unspecified behavior. Fix: Ensure that dynamically allocated memory is freed when it is no longer required. If 'ptr' is a temporary resource, it should be freed within the function or its scope. If it's a persistent resource, its lifecycle must be explicitly managed, including a corresponding 'free' call during system shutdown or when the resource is no longer needed. For instance: 'void* ptr = malloc(100); if (ptr != NULL) { /* Use ptr */ free(ptr); ptr = NULL; }'.",
   "is_compliant": false,
-  "confidence_score": 0.92,
-  "cited_rules": ["MISRA_21.3"],
+  "confidence_score": 1.0,
+  "cited_rules": [
+    "Rule MISRA_RULE_1.3"
+  ],
   "critique_iterations": 1,
   "critique_passed": true,
-  "fixed_code_snippet": "void *p = malloc(n);\nif (p == NULL) { /* handle error */ }",
-  "remediation_explanation": "Rule 21.3 (Required): malloc return value was not checked for NULL → added NULL check to handle allocation failure.",
+  "critique_history": [
+    {
+      "iteration": 1,
+      "issues_found": [],
+      "approved": true
+    }
+  ],
+  "retrieved_rule_ids": [
+    "MISRA_RULE_1.5",
+    "MISRA_RULE_1.3",
+    "MISRA_RULE_14.3",
+    "MISRA_RULE_2.1",
+    "MISRA_RULE_17.4"
+  ],
+  "error": null,
+  "fixed_code_snippet": "/* flight_controller.c */\n#include <stdio.h>\n#include <stdlib.h>\n#include <stdint.h>\n\n#define MAX_ALTITUDE 45000\n\nint system_fault_code = 0;\n\nvoid System_Init() {\n    void* ptr = malloc(100);\n    if (ptr == NULL) {\n        system_fault_code = 1;\n    } else {\n        free(ptr);\n        ptr = NULL;\n    }\n}\n\nint main(void) {\n    System_Init();\n    return 0;\n}",
+  "remediation_explanation": "MISRA_RULE_1.3 (Required): The return value of 'malloc' on line 10 was not checked, potentially leading to undefined behavior if allocation failed. Additionally, the memory allocated by 'malloc' was never freed, causing a memory leak → An 'if (ptr == NULL)' check was added after the 'malloc' call on line 10. If 'malloc' fails, 'system_fault_code' is set to 1 to indicate an error. If 'malloc' succeeds, 'free(ptr)' is called immediately, and 'ptr' is set to 'NULL' to release the allocated memory and prevent a memory leak, as the memory was not used further within the function. This ensures proper error handling and memory management.",
   "total_tokens_usage": {
-    "prompt_tokens": 1240,
-    "completion_tokens": 380,
-    "total_tokens": 1620,
-    "estimated_cost": 0.000021
+    "prompt_tokens": 3008,
+    "completion_tokens": 5327,
+    "total_tokens": 8335,
+    "orchestrator_tokens": 594,
+    "validation_tokens": 2738,
+    "critique_tokens": 2236,
+    "remediation_tokens": 2767,
+    "estimated_cost": 0.0142199
   }
 }
 ```
