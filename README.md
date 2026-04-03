@@ -386,15 +386,6 @@ curl -X POST http://localhost:8000/api/v1/query \
 - **Anti-privilege escalation** — API keys cannot be created with scopes the issuing account does not hold
 - **JWT fields** — `sub` (user_id), `email`, `scopes`, `exp`, `type: "access"|"refresh"`
 
-### New env variables (auth)
-
-```env
-JWT_SECRET_KEY=changeme-in-production     # HS256 signing key
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
-ADMIN_REGISTRATION_TOKEN=                 # empty = admin self-registration disabled
-```
-
 ---
 
 ## MongoDB Checkpoint Memory
