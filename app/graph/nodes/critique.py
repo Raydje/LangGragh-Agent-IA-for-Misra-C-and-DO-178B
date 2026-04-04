@@ -79,7 +79,7 @@ Based on the 5 criteria, generate your structured verdict."""
             timeout=settings.llm_timeout
         )
     except asyncio.TimeoutError:
-        logger.error(f"Critique LLM call timed out after {settings.llm_timeout} seconds.")
+        logger.error("Critique LLM call timed out after seconds.", timeout=settings.llm_timeout)
         return {
             "critique_approved": False,
             "critique_feedback": "Critique timed out; validation will be re-run.",

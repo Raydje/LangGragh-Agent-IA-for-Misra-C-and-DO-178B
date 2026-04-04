@@ -103,7 +103,7 @@ Provide your structured validation verdict."""
             timeout=settings.llm_timeout
         )
     except asyncio.TimeoutError:
-        logger.error(f"Validation LLM call timed out after {settings.llm_timeout} seconds.")
+        logger.error("Validation LLM call timed out after seconds.", timeout=settings.llm_timeout)
         return {
             "validation_result": "Validation timed out: LLM did not respond in time.",
             "is_compliant": False,

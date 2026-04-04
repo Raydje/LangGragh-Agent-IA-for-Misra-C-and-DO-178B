@@ -53,7 +53,7 @@ class PineconeService:
                 ]
             }
         except asyncio.TimeoutError:
-            logger.error(f"Pinecone query timed out {settings.pinecone_timeout} seconds. try healthy check on Pinecone index.")
+            logger.error("Pinecone query timed out seconds. try healthy check on Pinecone index.", timeout=settings.pinecone_timeout)
             return {"matches": []}            
 
     async def upsert_vectors(self, vectors: list[dict]) -> int:

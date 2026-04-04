@@ -36,7 +36,7 @@ def parse_misra_file(filepath: str) -> list[dict]:
         with open(file_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
     except FileNotFoundError:
-        logger.error(f"Error: Could not find {file_path}")
+        logger.error("Error: Could not find file", file_path=file_path)
         return []
 
     current_rule = None

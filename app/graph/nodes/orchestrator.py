@@ -61,7 +61,7 @@ async def orchestrate(state: ComplianceState) -> dict:
             timeout=settings.llm_timeout
         )
     except asyncio.TimeoutError:
-        logger.error(f"Orchestrator LLM call timed out after {settings.llm_timeout} seconds.")
+        logger.error("Orchestrator LLM call timed out after seconds.", timeout = settings.llm_timeout)
         return {
             "intent": "search",
             "orchestrator_reasoning": "Orchestrator timed out; defaulting to search.",

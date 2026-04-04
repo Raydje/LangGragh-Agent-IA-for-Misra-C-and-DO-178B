@@ -41,7 +41,7 @@ class MongoDBService:
                                         timeout=settings.mongodb_timeout)
             return await cursor.to_list(length=100)
         except asyncio.TimeoutError:
-            logger.error(f"MongoDB query timed out {settings.mongodb_timeout} seconds. try healthy check on MongoDB connection.")
+            logger.error("MongoDB query timed out seconds. try healthy check on MongoDB connection.", timeout=settings.mongodb_timeout)
             return []
 
     async def get_misra_rules_by_pinecone_ids(self, rule_ids: list[str]) -> list[dict]:
@@ -72,7 +72,7 @@ class MongoDBService:
 
             return docs
         except asyncio.TimeoutError:
-            logger.error(f"MongoDB query timed out {settings.mongodb_timeout} seconds. try healthy check on MongoDB connection.")
+            logger.error("MongoDB query timed out seconds. try healthy check on MongoDB connection.", timeout=settings.mongodb_timeout)
             return []
 
     async def get_rules_by_metadata(self, filters: dict) -> list[dict]:

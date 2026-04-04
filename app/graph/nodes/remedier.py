@@ -95,7 +95,7 @@ Provide your structured remediation output."""
             timeout=settings.llm_timeout
         )
     except asyncio.TimeoutError:
-        logger.error(f"Remediation LLM call timed out after {settings.llm_timeout} seconds.")
+        logger.error("Remediation LLM call timed out after seconds.", timeout=settings.llm_timeout)
         return {
             "fixed_code_snippet": code_snippet,
             "remediation_explanation": "Remediation timed out: LLM did not respond in time.",
