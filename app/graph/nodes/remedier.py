@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.models.state import ComplianceState
 from app.services.llm_service import get_structured_llm
 from app.config import get_settings
-from app.utils import calculate_gemini_cost, logger
+from app.utils import calculate_gemini_cost, extracting_tokens_metadata, logger
 
 
 # Structured output schema — guarantees valid typed output from the LLM
@@ -124,18 +124,15 @@ Provide your structured remediation output."""
             "estimated_cost": 0.0,
         }
 
-    usage = getattr(raw_result.get("raw"), "usage_metadata", None) or {}
-    _input_tokens = usage.get("input_tokens", 0)
-    _output_tokens = usage.get("output_tokens", 0)
-    logger.info("Remediation_node_result", fixed_code_snippet=fixed_code, input_tokens=_input_tokens, output_tokens=_output_tokens)
-    logger.info("Remediation_node_cost", estimated_cost=calculate_gemini_cost(_input_tokens, _output_tokens))
+    tokens_metadata = extracting_tokens_metadata(raw_result)
+    logger.info("Remediation_node_result", fixed_code_snippet=fixed_code, input_tokens=tokens_metadata["prompt_tokens"], output_tokens=tokens_metadata["completion_tokens"])
 
     return {
         "fixed_code_snippet": fixed_code,
         "remediation_explanation": explanation,
-        "prompt_tokens": _input_tokens,
-        "completion_tokens": _output_tokens,
-        "total_tokens": _input_tokens + _output_tokens,
-        "remediation_tokens": _input_tokens + _output_tokens,
-        "estimated_cost": calculate_gemini_cost(_input_tokens, _output_tokens),
+        "prompt_tokens": tokens_metadata["prompt_tokens"],
+        "completion_tokens": tokens_metadata["completion_tokens"],
+        "total_tokens": tokens_metadata["total_tokens"],
+        "remediation_tokens": tokens_metadata["total_tokens"],
+        "estimated_cost": tokens_metadata["estimated_cost"],
     }

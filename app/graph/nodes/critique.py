@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.models.state import ComplianceState, CritiqueEntry
 from app.services.llm_service import get_structured_llm
 from app.config import get_settings
-from app.utils import calculate_gemini_cost, logger
+from app.utils import calculate_gemini_cost, extracting_tokens_metadata,logger
 
 
 # Structured output schema — guarantees valid typed output from the LLM
@@ -113,19 +113,16 @@ Based on the 5 criteria, generate your structured verdict."""
         }
 
     # Track critique tokens used
-    usage = getattr(raw_result.get("raw"), "usage_metadata", None) or {}
-    _input_tokens = usage.get("input_tokens", 0)
-    _output_tokens = usage.get("output_tokens", 0)
-    logger.info("Critique_node_result", approved=approved, feedback=feedback, input_tokens=_input_tokens, output_tokens=_output_tokens)
-    logger.info("Critique_node_cost", estimated_cost=calculate_gemini_cost(_input_tokens, _output_tokens))
+    tokens_metadata = extracting_tokens_metadata(raw_result)
+    logger.info("Critique_node_result", approved=approved, feedback=feedback, tokens_metadata=tokens_metadata)
 
     return {
         "critique_approved": approved,
         "critique_feedback": feedback,
         "critique_history": [critique_entry],
-        "prompt_tokens": _input_tokens,
-        "completion_tokens": _output_tokens,
-        "total_tokens": _input_tokens + _output_tokens,
-        "critique_tokens": _input_tokens + _output_tokens,
-        "estimated_cost": calculate_gemini_cost(_input_tokens, _output_tokens),
+        "prompt_tokens": tokens_metadata["prompt_tokens"],
+        "completion_tokens": tokens_metadata["completion_tokens"],
+        "total_tokens": tokens_metadata["total_tokens"],
+        "critique_tokens": tokens_metadata["total_tokens"],
+        "estimated_cost": tokens_metadata["estimated_cost"],
     }
