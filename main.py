@@ -7,8 +7,9 @@ from app.auth.router import auth_router
 from app.config import get_settings
 from app.utils import logger
 from app.graph.builder import build_graph
-from app.services.mongodb_service import get_mongodb_service, get_mongodb_checkpoint_service
-from app.services.pinecone_service import get_pinecone_service
+from app.services.mongodb_service import MongoDBService,  MongoDBCheckpointService
+from app.services.pinecone_service import PineconeService
+from app.services.embedding_service import EmbeddingService
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -35,9 +36,10 @@ async def lifespan(app: FastAPI):
         logger.warning(f"[Startup] Redis unavailable — rate limiting degraded to in-memory: {e}")
 
     # app.state holds the same reference — used by route dependencies.
-    app.state.mongodb = get_mongodb_service()
-    app.state.pinecone = get_pinecone_service()
-    app.state.mongodb_checkpoint = get_mongodb_checkpoint_service()
+    app.state.mongodb = MongoDBService()
+    app.state.pinecone = PineconeService()
+    app.state.mongodb_checkpoint = MongoDBCheckpointService()
+    app.state.embedding = EmbeddingService()
 
     checkpointer = MongoDBSaver(app.state.mongodb_checkpoint.client,
                                 db_name=app.state.mongodb_checkpoint.db.name,

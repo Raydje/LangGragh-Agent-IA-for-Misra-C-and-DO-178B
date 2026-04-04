@@ -5,16 +5,12 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 from app.config import get_settings
 from app.utils import logger
+from functools import lru_cache
 
 _INDEX_FIELDS = [("rule_type", 1), ("section", 1), ("rule_number", 1)]
 _ID_RE = re.compile(r'^MISRA_(RULE|DIR)_(\d+)\.(\d+)$')
 
 
-def get_mongodb_service() -> "MongoDBService":
-    return MongoDBService()
-
-def get_mongodb_checkpoint_service() -> "MongoDBCheckpointService":
-    return MongoDBCheckpointService()
 
 # Sync pymongo client — MongoDBSaver (langgraph-checkpoint-mongodb) requires pymongo, not Motor.
 class MongoDBCheckpointService:

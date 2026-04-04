@@ -1,32 +1,38 @@
 # app/graph/nodes/rag.py
 
 from typing import Any
+
+from langchain_core.runnables import RunnableConfig
 from app.models.state import ComplianceState, RetrievedRule
-from app.services.embedding_service import get_embedding
-from app.services.pinecone_service import get_pinecone_service
-from app.services.mongodb_service import get_mongodb_service
 from app.utils import logger
 
-async def rag_node(state: ComplianceState) -> dict[str, Any]:
+async def rag_node(state: ComplianceState, config: RunnableConfig) -> dict[str, Any]:
     """
     LangGraph node responsible for hybrid retrieval.
     Currently focused strictly on fetching MISRA C:2023 rules using Pinecone (vector search)
     and MongoDB (document retrieval).
     """
+    
+    # Get configurable dependencies from the config (passed via the route handler)
+    logger.info("RAG_node - extracting dependencies from config")
+    mongo_db = config["configurable"].get("mongo_db")
+    pinecone_service = config["configurable"].get("pinecone_service")
+    embedding_service = config["configurable"].get("embedding_service")
+    
     logger.info("RAG_node invoked", query=state.get("query", ""))
     query = state.get("query", "")
     
     # 1. Embed the user's query
-    vector = await get_embedding(query)
+    vector = await embedding_service.get_embedding(query)
     logger.info("RAG_node - query embedded")
+    
     # 2. Build metadata filters strictly for MISRA C:2023
-    # Based on your ingest script, we lock the scope to MISRA C:2023 
-    # so we don't accidentally retrieve any other standards later.
-    metadata_filters = {"scope": "MISRA C:2023"}
+    metadata_filters = {"scope": state.get("standard", "MISRA C:2023")}
+    logger.info("RAG_NODE scope", scope = metadata_filters["scope"])
 
     # 3. Query Pinecone for top K matches (semantic search)
-    # Fetching the top 5 most relevant MISRA C:2023 rules
-    pinecone_results = await get_pinecone_service().query(
+    # Fetching the top 5 most relevant rules
+    pinecone_results = await pinecone_service.query(
         vector=vector,
         top_k=5,
         filter=metadata_filters
@@ -40,8 +46,8 @@ async def rag_node(state: ComplianceState) -> dict[str, Any]:
     retrieved_rules: list[RetrievedRule] = []
     logger.info(f"RAG_node - retrieved {len(rule_ids)} matching IDs from Pinecone", rule_ids=rule_ids)
     if rule_ids:
-        # 4. Fetch the full MISRA C:2023 documents from MongoDB
-        mongo_docs = await get_mongodb_service().get_misra_rules_by_pinecone_ids(rule_ids)
+        # 4. Fetch the full documents from MongoDB
+        mongo_docs = await mongo_db.get_misra_rules_by_pinecone_ids(rule_ids)
         logger.info(f"RAG_node - retrieved {len(mongo_docs)} documents from MongoDB based on Pinecone IDs")
         # 5. Format the documents into the TypedDict expected by LangGraph
         for doc in mongo_docs:

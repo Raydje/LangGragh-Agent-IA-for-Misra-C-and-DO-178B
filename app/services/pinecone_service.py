@@ -4,10 +4,6 @@ from app.config import get_settings
 from app.utils import logger
 
 
-def get_pinecone_service() -> "PineconeService":
-    return PineconeService()
-
-
 class PineconeService:
     def __init__(self) -> None:
         settings = get_settings()

@@ -11,7 +11,7 @@ from app.api.v1.responses import (
     ThreadHistoryEntry,
     ThreadHistoryResponse,
 )
-from app.api.dependencies import get_compiled_graph, get_mongo_db, get_pinecone_index, limiter
+from app.api.dependencies import get_compiled_graph, get_mongodb_service,get_mongodb_database, get_embedding_service, get_pinecone_index, get_pinecone_service, limiter
 from app.config import get_settings
 from app.data.ingest import main as ingest
 from app.utils import logger
@@ -22,7 +22,7 @@ router = APIRouter()
 @limiter.limit("30/minute")
 async def health_check(
     request: Request,
-    db=Depends(get_mongo_db),
+    db=Depends(get_mongodb_database),
     index=Depends(get_pinecone_index),
 ):
     """Checks the health of the API and backing databases (MongoDB & Pinecone)."""
@@ -56,6 +56,9 @@ async def query_compliance(
     request: Request,
     body: ComplianceQueryRequest,
     graph=Depends(get_compiled_graph),
+    embedding_service=Depends(get_embedding_service),
+    mongo_db=Depends(get_mongodb_service),
+    pinecone_service=Depends(get_pinecone_service),
     principal: Principal = Security(get_current_principal, scopes=["query:read"]),
 ):
     """Main endpoint to trigger the LangGraph multi-agent compliance check."""
@@ -71,10 +74,13 @@ async def query_compliance(
 
     try:
         thread_id = body.thread_id or str(uuid.uuid4())
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {"configurable": {"thread_id": thread_id,
+                                   "mongo_db": mongo_db,
+                                   "pinecone_service": pinecone_service,
+                                   "embedding_service": embedding_service}}
         result = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Unable to process query. Please try again later or use health check endpoints.")
+        raise HTTPException(status_code=500, detail="Unable to process query. Please try again later or use health check endpoints. Error: " + str(e))
 
     return _build_response(thread_id, result)
 
@@ -99,6 +105,9 @@ async def replay_from_checkpoint(
     thread_id: str = Path(..., description="Thread ID of the session to replay"),
     checkpoint_id: str = Path(..., description="Checkpoint ID to fork execution from"),
     graph=Depends(get_compiled_graph),
+    embedding_service=Depends(get_embedding_service),
+    mongo_db=Depends(get_mongodb_service),
+    pinecone_service=Depends(get_pinecone_service),
     principal: Principal = Security(get_current_principal, scopes=["admin:replay"]),
 ):
     """
@@ -109,6 +118,9 @@ async def replay_from_checkpoint(
         "configurable": {
             "thread_id": thread_id,
             "checkpoint_id": checkpoint_id,
+            "mongo_db": mongo_db,
+            "pinecone_service": pinecone_service,
+            "embedding_service": embedding_service
         }
     }
 

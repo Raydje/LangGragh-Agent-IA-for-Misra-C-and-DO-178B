@@ -1,21 +1,8 @@
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from app.config import get_settings
-from app.services.pinecone_service import get_pinecone_service
 from app.utils import logger
-
-_service_instance = None
-
-
-def _get_service() -> "EmbeddingService":
-    global _service_instance
-    if _service_instance is None:
-        _service_instance = EmbeddingService()
-    return _service_instance
-
-
-async def get_embedding(text: str) -> list[float]:
-    return await _get_service().embeddings.aembed_query(text)
+from app.services.pinecone_service import PineconeService
 
 
 class EmbeddingService:
@@ -26,6 +13,9 @@ class EmbeddingService:
             google_api_key=settings.gemini_api_key,
             output_dimensionality=settings.embedding_dimensions,
         )
+        
+    async def get_embedding(self, text: str) -> list[float]:
+        return await self.embeddings.aembed_query(text)
 
     async def embed_and_store(self, rules: list[dict]) -> int:
         if not rules:
@@ -60,6 +50,6 @@ class EmbeddingService:
             })
 
         logger.info("Delegating upload to pinecone_service...")
-        upserted = await get_pinecone_service().upsert_vectors(vectors)
+        upserted = await PineconeService().upsert_vectors(vectors)
         logger.info(f"✅ Successfully passed {len(vectors)} embeddings to Pinecone!")
         return upserted
