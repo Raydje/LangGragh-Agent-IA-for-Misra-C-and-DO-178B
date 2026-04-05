@@ -1,6 +1,5 @@
 import json
 import re
-from pytest_asyncio.plugin import Coroutine
 import structlog
 from app.config import get_settings
 

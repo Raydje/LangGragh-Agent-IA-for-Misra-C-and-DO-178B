@@ -29,8 +29,8 @@ jobs:
         python -m pip install --upgrade pip
         # Install project dependencies
         pip install -r requirements.txt
-        # Ensure pytest and coverage tools are installed
-        pip install pytest pytest-cov ruff
+        # ruff is the only tool absent from requirements.txt
+        pip install ruff
 
     - name: Lint with Ruff (Optional but highly recommended for CVs)
       run: |
@@ -44,7 +44,8 @@ jobs:
         # For actual live tests, use GitHub Secrets (explained below).
         PINECONE_API_KEY: "dummy_key"
         GEMINI_API_KEY: "dummy_key"
-        MONGO_URI: "mongodb://localhost:27017"
+        MONGODB_URI: "mongodb://localhost:27017"
+        JWT_SECRET_KEY: "test-only-insecure-jwt-secret-do-not-use-in-prod"
       run: |
         # We target tests/unit to avoid running live non-regression tests that cost money
         pytest tests/unit/ --cov=app --cov-report=term-missing
