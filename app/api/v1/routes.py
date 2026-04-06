@@ -10,6 +10,7 @@ from app.api.v1.responses import (
     MetadataUsage,
     ThreadHistoryEntry,
     ThreadHistoryResponse,
+    UsageResponse,
 )
 from app.api.dependencies import get_compiled_graph, get_mongodb_service, get_mongodb_database, get_embedding_service, get_pinecone_index, get_pinecone_service, get_usage_service, limiter
 from app.api.rate_limit import enforce_user_rate_limit, enforce_user_budget
@@ -82,12 +83,18 @@ async def query_compliance(
     status_code = 200
     result = None  # Initialize before try block for finally access
 
+    config = {"configurable": {"thread_id": thread_id,
+                               "mongo_db": mongo_db,
+                               "pinecone_service": pinecone_service,
+                               "embedding_service": embedding_service}}
+    nodes_visited = None
     try:
-        config = {"configurable": {"thread_id": thread_id,
-                                   "mongo_db": mongo_db,
-                                   "pinecone_service": pinecone_service,
-                                   "embedding_service": embedding_service}}
         result = await graph.ainvoke(initial_state, config=config)
+        # Compute nodes visited only on successful execution
+        nodes_visited = []
+        async for state in graph.aget_state_history(config):
+            if state.next:
+                nodes_visited.append(state.next[0])
     except Exception as e:
         status_code = 500
         logger.exception("Compliance query failed for thread_id=%s", thread_id)
@@ -106,6 +113,8 @@ async def query_compliance(
             completion_tokens=_result.get("completion_tokens", 0),
             total_tokens=_result.get("total_tokens", 0),
             estimated_cost=_result.get("estimated_cost", 0.0),
+            critique_iterations=_result.get("iteration_count", 0),
+            nodes_visited=nodes_visited,
             status_code=status_code,
         )
 
@@ -199,6 +208,23 @@ async def get_thread_history(
         raise HTTPException(status_code=404, detail=f"No history found for thread_id '{thread_id}'")
 
     return ThreadHistoryResponse(thread_id=thread_id, history=history)
+
+
+@router.get("/usage", response_model=UsageResponse)
+@limiter.limit("30/minute")
+async def get_usage(
+    request: Request,
+    response: Response,
+    usage_service: UsageService = Depends(get_usage_service),
+    principal: Principal = Security(get_current_principal, scopes=["query:read"]),
+    _rate: None = Depends(enforce_user_rate_limit),
+):
+    """Retrieve usage summary for the authenticated user."""
+    usage_data = await usage_service.get_user_usage(principal.user_id)
+    if not usage_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UsageResponse(**usage_data)
+
 
 
 def _build_response(thread_id: str, result: dict) -> ComplianceQueryResponse:

@@ -231,6 +231,7 @@ LangGragh-Agent-IA-for-Misra-C/
 | `POST` | `/api/v1/seed` | Yes (`admin:seed`) | Parses MISRA txt file and ingests into MongoDB + Pinecone |
 | `POST` | `/api/v1/replay/{thread_id}/{checkpoint_id}` | Yes (`admin:replay`) | Re-executes the graph from a specific checkpoint (Time Travel) |
 | `GET` | `/api/v1/history/{thread_id}` | Yes (`query:read`) | Returns all checkpoint snapshots for a session |
+| `GET` | `/api/v1/usage` | Yes (`query:read`) | Retrieve user's usage summary with cost and execution metadata |
 | `POST` | `/api/v1/auth/register` | No | Create a user account (optionally with admin scopes) |
 | `POST` | `/api/v1/auth/token` | No | OAuth2 password flow — returns access + refresh token pair |
 | `POST` | `/api/v1/auth/refresh` | No | Rotate a refresh token — revoke old, issue new pair |

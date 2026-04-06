@@ -72,6 +72,8 @@ _RECORD_KWARGS = dict(
     completion_tokens=50,
     total_tokens=150,
     estimated_cost=0.003,
+    critique_iterations=0,
+    nodes_visited=None,
     status_code=200,
 )
 
@@ -190,7 +192,8 @@ async def test_record_usage_log_contains_all_required_fields():
     required_fields = {
         "user_id", "endpoint", "method", "timestamp",
         "thread_id", "prompt_tokens", "completion_tokens",
-        "total_tokens", "estimated_cost", "status_code",
+        "total_tokens", "estimated_cost", "critique_iterations",
+        "nodes_visited", "status_code",
     }
     assert required_fields.issubset(inserted.keys())
 
@@ -200,7 +203,7 @@ async def test_record_usage_log_contains_all_required_fields():
 # ---------------------------------------------------------------------------
 
 async def test_get_user_usage_returns_combined_summary():
-    log_entry = {"user_id": "user-123", "estimated_cost": 0.003}
+    log_entry = {"user_id": "user-123", "estimated_cost": 0.003, "critique_iterations": 0, "nodes_visited": None}
     db = _make_db(
         user_doc={"_id": "user-123", "email": "u@test.com", "total_cost": 1.5, "total_requests": 3},
         find_docs=[log_entry],

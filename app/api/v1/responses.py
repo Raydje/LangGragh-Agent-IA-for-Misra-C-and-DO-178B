@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from typing import Any, Optional
 
@@ -5,6 +6,30 @@ class CritiqueDetail(BaseModel):
     iteration: int
     issues_found: list[str]
     approved: bool
+
+
+class UsageLogEntry(BaseModel):
+    user_id: str
+    endpoint: str
+    method: str
+    timestamp: datetime
+    thread_id: Optional[str]
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    estimated_cost: float
+    critique_iterations: int = 0
+    nodes_visited: Optional[list[str]] = None
+    status_code: int
+
+
+class UsageResponse(BaseModel):
+    user_id: str
+    email: Optional[str]
+    total_cost: float
+    total_requests: int
+    recent_logs: list[UsageLogEntry]
+
 
 class MetadataUsage(BaseModel):
     prompt_tokens: int

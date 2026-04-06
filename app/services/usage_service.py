@@ -64,6 +64,8 @@ class UsageService:
         completion_tokens: int,
         total_tokens: int,
         estimated_cost: float,
+        critique_iterations: int = 0,
+        nodes_visited: Optional[list[str]] = None,
         status_code: int,
     ) -> None:
         """Persist one usage log entry and atomically update the user's running totals.
@@ -74,6 +76,9 @@ class UsageService:
             failure (log inserted, user not updated) is recoverable via
             re-aggregation from usage_logs.  A transaction would require a
             replica set, which is not assumed in the local dev environment.
+        
+        Additional metadata: critique_iterations (number of critique loops),
+        nodes_visited (list of graph node names executed in order).
         """
         log_entry = {
             "user_id": user_id,
@@ -85,6 +90,8 @@ class UsageService:
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
             "estimated_cost": estimated_cost,
+            "critique_iterations": critique_iterations,
+            "nodes_visited": nodes_visited,
             "status_code": status_code,
         }
 
