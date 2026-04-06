@@ -87,6 +87,9 @@ async def register(body: UserCreate, request: Request):
         "is_active": True,
         "refresh_tokens": [],
         "created_at": datetime.now(timezone.utc),
+        # Usage tracking (updated atomically by UsageService after each query)
+        "total_cost": 0.0,
+        "total_requests": 0,
     })
 
     return {"user_id": user_id, "email": body.email, "scopes": scopes}

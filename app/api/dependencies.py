@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.services.mongodb_service import MongoDBService, MongoDBCheckpointService
 from app.services.pinecone_service import PineconeService
 from app.services.embedding_service import EmbeddingService
+from app.services.usage_service import UsageService
 
 
 def get_mongodb_service(request: Request) -> MongoDBService:
@@ -58,3 +59,9 @@ def get_mongodb_database(request: Request) -> AsyncIOMotorDatabase:
 
 def get_pinecone_index(request: Request):
     return request.app.state.pinecone.index
+
+def get_usage_service(request: Request) -> UsageService:
+    return request.app.state.usage_service
+
+def get_redis(request: Request):
+    return request.app.state.redis

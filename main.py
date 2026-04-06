@@ -8,11 +8,13 @@ from app.config import get_settings
 from app.utils import logger
 from app.graph.builder import build_graph
 from app.services.service_container import create_service_container
+from app.services.usage_service import UsageService
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.api.dependencies import limiter
 import redis as redis_sync
+import redis.asyncio as redis_async
 from limits.storage import RedisStorage
 
 @asynccontextmanager
@@ -24,14 +26,23 @@ async def lifespan(app: FastAPI):
     logger.info("[Startup] MongoDB", database=settings.mongodb_database)
     logger.info("[Startup] Pinecone index", index_name=settings.pinecone_index_name, cloud=settings.pinecone_cloud, region=settings.pinecone_region)
 
-    # Validate Redis connection (fail-fast with clear log)
+    # Validate Redis connection (fail-fast with clear log) and create async client
+    redis_client = None
     try:
         _r = redis_sync.from_url(settings.redis_uri, socket_connect_timeout=3)
         _r.ping()
         _r.close()
         logger.info("[Startup] Redis connected", host=settings.redis_host, port=settings.redis_port)
+        # Create async Redis client for per-user rate limiting (sliding window)
+        redis_client = redis_async.from_url(
+            settings.redis_uri,
+            encoding="utf-8",
+            decode_responses=True,
+        )
     except Exception as e:
-        logger.warning("[Startup] Redis unavailable — rate limiting degraded to in-memory", error=str(e))
+        logger.warning("[Startup] Redis unavailable — per-user rate limiting degraded to pass-through", error=str(e))
+
+    app.state.redis = redis_client
 
     # Delegate service instantiation and cleanup to the centralised container.
     # app.state holds the same references — used by route dependencies.
@@ -53,15 +64,27 @@ async def lifespan(app: FastAPI):
         await auth_db["api_keys"].create_index("user_id")
         logger.info("[Startup] Auth indexes ensured (users.email, api_keys.key_id, api_keys.user_id)")
 
+        # Create UsageService and its indexes
+        usage_service = UsageService(db=auth_db)
+        await usage_service.create_indexes()
+        app.state.usage_service = usage_service
+
         yield
 
     # --- Shutdown (container finally block closes all service connections) ---
+    if redis_client is not None:
+        try:
+            await redis_client.aclose()
+            logger.info("[Shutdown] Async Redis client closed")
+        except Exception as e:
+            logger.warning("[Shutdown] Async Redis close error", error=str(e))
+
     try:
         if isinstance(limiter._storage, RedisStorage):
             limiter._storage.storage.close()
-            logger.info("[Shutdown] Redis connection closed")
+            logger.info("[Shutdown] SlowAPI Redis connection closed")
     except Exception as e:
-        logger.warning("[Shutdown] Redis close error", error=str(e))
+        logger.warning("[Shutdown] SlowAPI Redis close error", error=str(e))
 
 
 # Initialize FastAPI app with metadata for Swagger UI
