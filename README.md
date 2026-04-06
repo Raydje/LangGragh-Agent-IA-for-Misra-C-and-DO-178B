@@ -156,7 +156,7 @@ LangGragh-Agent-IA-for-Misra-C/
 │
 ├── app/
 │   ├── config.py                        # Pydantic Settings (lru_cache), CORS origins, timeout config
-│   ├── utils.py                         # parse_json_response(), calculate_gemini_cost(), structlog
+│   ├── utils.py                         # calculate_gemini_cost(), structlog
 │   ├── models_pricing.py                # Gemini model pricing table (30+ models)
 │   │
 │   ├── models/
@@ -574,7 +574,6 @@ MONGODB_TIMEOUT=15
 
 # Agent behavior
 MAX_CRITIQUE_ITERATIONS=4
-CONFIDENCE_THRESHOLD=0.85
 MAX_INPUT_LENGTH=3000
 
 # Per-node temperatures

@@ -80,7 +80,9 @@ async def query_compliance(
                                    "embedding_service": embedding_service}}
         result = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Unable to process query. Please try again later or use health check endpoints. Error: " + str(e))
+        logger.exception("Compliance query failed for thread_id=%s", thread_id)
+        logger.error("Error details: %s", str(e))
+        raise HTTPException(status_code=500, detail="Unable to process query. Please try again later or use health check endpoints.")
 
     return _build_response(thread_id, result)
 
@@ -138,6 +140,7 @@ async def replay_from_checkpoint(
         result = await graph.ainvoke(None, config=config)
     except Exception as e:
         logger.exception("Replay failed for thread=%s checkpoint=%s", thread_id, checkpoint_id)
+        logger.error("Error details: %s", str(e))
         raise HTTPException(status_code=500, detail="Replay failed: maybe wrong checkpoint_id or gemini is down")
 
     return _build_response(thread_id, result)

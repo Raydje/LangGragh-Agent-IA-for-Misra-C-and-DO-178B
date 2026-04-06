@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
             limiter._storage.storage.close()
             logger.info("[Shutdown] Redis connection closed")
     except Exception as e:
-        logger.warning(f"[Shutdown] Redis close error")
+        logger.warning("[Shutdown] Redis close error", error=str(e))
 
 
 # Initialize FastAPI app with metadata for Swagger UI

@@ -34,11 +34,18 @@ async def assemble_node(state: ComplianceState) -> dict[str, str]:
         cited = state.get("cited_rules") or []
         details = state.get("validation_result", "No details available.")
         cited_text = ", ".join(cited) if cited else "none"
+        
+        confidence_text = (
+            f"Confidence: {confidence:.0%}\n" 
+            if confidence is not None 
+            else "error: confidence score missing\n"
+        )
+        
         final_answer = (
             f"Validation Complete.\n"
             f"Standard: {standard}\n"
             f"Compliant: {compliant}\n"
-            f"Confidence: {confidence:.0%}\n"
+            f"{confidence_text}"
             f"Cited rules: {cited_text}\n"
             f"Details: {details}"
         )

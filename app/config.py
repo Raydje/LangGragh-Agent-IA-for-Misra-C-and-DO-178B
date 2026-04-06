@@ -46,7 +46,6 @@ class Settings(BaseSettings):
 
     # Graph control
     max_critique_iterations: int = 4
-    confidence_threshold: float = 0.85
 
     # Node temperatures
     orchestrator_temperature: float = 0.0
