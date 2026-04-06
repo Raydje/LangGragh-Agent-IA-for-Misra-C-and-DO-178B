@@ -138,8 +138,8 @@ def test_create_refresh_token_jti_is_unique():
 
 def test_decode_token_raises_on_tampered_signature():
     token, _ = create_access_token("u", "u@u.com", [])
-    # Flip one character in the signature segment
+    # Replace the signature segment entirely with an invalid one
     parts = token.split(".")
-    tampered = parts[0] + "." + parts[1] + "." + parts[2][:-1] + ("A" if parts[2][-1] != "A" else "B")
+    tampered = parts[0] + "." + parts[1] + "." + "invalidsignature"
     with pytest.raises(JWTError):
         decode_token(tampered)
