@@ -25,6 +25,7 @@ query_compliance = _routes_mod.query_compliance.__wrapped__
 seed_database = _routes_mod.seed_database.__wrapped__
 replay_from_checkpoint = _routes_mod.replay_from_checkpoint.__wrapped__
 get_thread_history = _routes_mod.get_thread_history.__wrapped__
+get_usage = _routes_mod.get_usage.__wrapped__
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +43,18 @@ def _principal(scopes: list[str] | None = None) -> Principal:
 
 def _make_request() -> MagicMock:
     return MagicMock()
+
+
+def _make_response() -> MagicMock:
+    resp = MagicMock()
+    resp.headers = {}
+    return resp
+
+
+def _make_usage_service() -> MagicMock:
+    svc = MagicMock()
+    svc.record_usage = AsyncMock()
+    return svc
 
 
 def _make_graph(result: dict | None = None) -> MagicMock:
@@ -138,11 +151,13 @@ async def test_query_compliance_happy_path_returns_response():
 
     result = await query_compliance(
         request=_make_request(),
+        response=_make_response(),
         body=body,
         graph=graph,
         embedding_service=MagicMock(),
         mongo_db=MagicMock(),
         pinecone_service=MagicMock(),
+        usage_service=_make_usage_service(),
         principal=_principal(),
     )
 
@@ -161,11 +176,13 @@ async def test_query_compliance_graph_exception_raises_500():
     with pytest.raises(HTTPException) as exc_info:
         await query_compliance(
             request=_make_request(),
+            response=_make_response(),
             body=body,
             graph=graph,
             embedding_service=MagicMock(),
             mongo_db=MagicMock(),
             pinecone_service=MagicMock(),
+            usage_service=_make_usage_service(),
             principal=_principal(),
         )
     assert exc_info.value.status_code == 500
@@ -181,11 +198,13 @@ async def test_query_compliance_thread_id_preserved_when_provided():
 
     result = await query_compliance(
         request=_make_request(),
+        response=_make_response(),
         body=body,
         graph=graph,
         embedding_service=MagicMock(),
         mongo_db=MagicMock(),
         pinecone_service=MagicMock(),
+        usage_service=_make_usage_service(),
         principal=_principal(),
     )
 
@@ -202,6 +221,7 @@ async def test_seed_database_calls_ingest_and_returns_response():
 
         result = await seed_database(
             request=_make_request(),
+            response=_make_response(),
             principal=_principal(["admin:seed"]),
             embedding_service=MagicMock(),
             mongo_db=MagicMock(),
@@ -222,6 +242,7 @@ async def test_replay_happy_path_returns_response():
 
     result = await replay_from_checkpoint(
         request=_make_request(),
+        response=_make_response(),
         thread_id="t1",
         checkpoint_id="c1",
         graph=graph,
@@ -244,6 +265,7 @@ async def test_replay_missing_checkpoint_raises_404():
     with pytest.raises(HTTPException) as exc_info:
         await replay_from_checkpoint(
             request=_make_request(),
+            response=_make_response(),
             thread_id="t1",
             checkpoint_id="missing",
             graph=graph,
@@ -274,6 +296,7 @@ async def test_get_thread_history_returns_history():
 
     result = await get_thread_history(
         request=_make_request(),
+        response=_make_response(),
         thread_id="t1",
         graph=graph,
         principal=_principal(),
@@ -296,8 +319,69 @@ async def test_get_thread_history_empty_raises_404():
     with pytest.raises(HTTPException) as exc_info:
         await get_thread_history(
             request=_make_request(),
+            response=_make_response(),
             thread_id="t-empty",
             graph=graph,
+            principal=_principal(),
+        )
+    assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /usage
+# ---------------------------------------------------------------------------
+
+async def test_get_usage_returns_usage_data():
+    usage_service = _make_usage_service()
+    mock_data = {
+        "user_id": "u1",
+        "email": "u@test.com",
+        "total_cost": 1.5,
+        "total_requests": 3,
+        "recent_logs": [
+            {
+                "user_id": "u1",
+                "endpoint": "/api/v1/query",
+                "method": "POST",
+                "timestamp": "2026-04-07T00:00:00Z",
+                "thread_id": "thread-abc",
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150,
+                "estimated_cost": 0.003,
+                "critique_iterations": 2,
+                "nodes_visited": ["orchestrator", "rag", "validation", "critique", "validation"],
+                "status_code": 200
+            }
+        ]
+    }
+    usage_service.get_user_usage = AsyncMock(return_value=mock_data)
+
+    result = await get_usage(
+        request=_make_request(),
+        response=_make_response(),
+        usage_service=usage_service,
+        principal=_principal(),
+    )
+
+    assert result.user_id == "u1"
+    assert result.total_cost == 1.5
+    assert result.total_requests == 3
+    assert len(result.recent_logs) == 1
+    assert result.recent_logs[0].endpoint == "/api/v1/query"
+    assert result.recent_logs[0].critique_iterations == 2
+    assert result.recent_logs[0].nodes_visited == ["orchestrator", "rag", "validation", "critique", "validation"]
+
+
+async def test_get_usage_user_not_found_raises_404():
+    usage_service = _make_usage_service()
+    usage_service.get_user_usage = AsyncMock(return_value={})
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_usage(
+            request=_make_request(),
+            response=_make_response(),
+            usage_service=usage_service,
             principal=_principal(),
         )
     assert exc_info.value.status_code == 404

@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     redis_user: str = "default"
     redis_password: str = ""  # empty = no auth (safe local default)
 
+    # Per-user rate limiting & budget enforcement
+    # Applies to all non-admin users (admin:all scope bypasses both checks)
+    user_rate_limit_per_minute: int = 20   # Max API requests per user per minute
+    user_max_budget: float = 5.0           # Lifetime cost cap per user in USD
+
     @property
     def redis_uri(self) -> str:
         if self.redis_password or self.redis_user != "default":

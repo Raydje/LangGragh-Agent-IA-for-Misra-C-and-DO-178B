@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Security
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, Security
 from app.api.v1.requests import ComplianceQueryRequest
 from app.auth.dependencies import get_current_principal
 from app.auth.models import Principal
@@ -10,10 +10,13 @@ from app.api.v1.responses import (
     MetadataUsage,
     ThreadHistoryEntry,
     ThreadHistoryResponse,
+    UsageResponse,
 )
-from app.api.dependencies import get_compiled_graph, get_mongodb_service,get_mongodb_database, get_embedding_service, get_pinecone_index, get_pinecone_service, limiter
+from app.api.dependencies import get_compiled_graph, get_mongodb_service, get_mongodb_database, get_embedding_service, get_pinecone_index, get_pinecone_service, get_usage_service, limiter
+from app.api.rate_limit import enforce_user_rate_limit, enforce_user_budget
 from app.config import get_settings
 from app.data.ingest import main as ingest
+from app.services.usage_service import UsageService
 from app.utils import logger
 
 router = APIRouter()
@@ -54,12 +57,16 @@ async def health_check(
 @limiter.limit("5/minute")
 async def query_compliance(
     request: Request,
+    response: Response,
     body: ComplianceQueryRequest,
     graph=Depends(get_compiled_graph),
     embedding_service=Depends(get_embedding_service),
     mongo_db=Depends(get_mongodb_service),
     pinecone_service=Depends(get_pinecone_service),
+    usage_service: UsageService = Depends(get_usage_service),
     principal: Principal = Security(get_current_principal, scopes=["query:read"]),
+    _rate: None = Depends(enforce_user_rate_limit),
+    _budget: None = Depends(enforce_user_budget),
 ):
     """Main endpoint to trigger the LangGraph multi-agent compliance check."""
     settings = get_settings()
@@ -72,17 +79,44 @@ async def query_compliance(
         "critique_history": [],
     }
 
+    thread_id = body.thread_id or str(uuid.uuid4())
+    status_code = 200
+    result = None  # Initialize before try block for finally access
+
+    config = {"configurable": {"thread_id": thread_id,
+                               "mongo_db": mongo_db,
+                               "pinecone_service": pinecone_service,
+                               "embedding_service": embedding_service}}
+    nodes_visited = None
     try:
-        thread_id = body.thread_id or str(uuid.uuid4())
-        config = {"configurable": {"thread_id": thread_id,
-                                   "mongo_db": mongo_db,
-                                   "pinecone_service": pinecone_service,
-                                   "embedding_service": embedding_service}}
         result = await graph.ainvoke(initial_state, config=config)
+        # Compute nodes visited only on successful execution
+        nodes_visited = []
+        async for state in graph.aget_state_history(config):
+            if state.next:
+                nodes_visited.append(state.next[0])
     except Exception as e:
+        status_code = 500
         logger.exception("Compliance query failed for thread_id=%s", thread_id)
         logger.error("Error details: %s", str(e))
         raise HTTPException(status_code=500, detail="Unable to process query. Please try again later or use health check endpoints.")
+    finally:
+        # Record usage regardless of success/failure so cost is always tracked.
+        # On exception the result dict may not exist — use safe defaults.
+        _result = result if result is not None else {}
+        await usage_service.record_usage(
+            user_id=principal.user_id,
+            endpoint="/api/v1/query",
+            method="POST",
+            thread_id=thread_id,
+            prompt_tokens=_result.get("prompt_tokens", 0),
+            completion_tokens=_result.get("completion_tokens", 0),
+            total_tokens=_result.get("total_tokens", 0),
+            estimated_cost=_result.get("estimated_cost", 0.0),
+            critique_iterations=_result.get("iteration_count", 0),
+            nodes_visited=nodes_visited,
+            status_code=status_code,
+        )
 
     return _build_response(thread_id, result)
 
@@ -90,10 +124,12 @@ async def query_compliance(
 @limiter.limit("2/minute")
 async def seed_database(
     request: Request,
+    response: Response,
     principal: Principal = Security(get_current_principal, scopes=["admin:seed"]),
     embedding_service=Depends(get_embedding_service),
     mongo_db=Depends(get_mongodb_service),
     pinecone_service=Depends(get_pinecone_service),
+    _rate: None = Depends(enforce_user_rate_limit),
 ):
     """Endpoint to trigger the ingestion of rules into MongoDB and Pinecone."""
     result = await ingest(mongodb=mongo_db, pinecone=pinecone_service, embedder=embedding_service)
@@ -107,6 +143,7 @@ async def seed_database(
 @limiter.limit("10/minute")
 async def replay_from_checkpoint(
     request: Request,
+    response: Response,
     thread_id: str = Path(..., description="Thread ID of the session to replay"),
     checkpoint_id: str = Path(..., description="Checkpoint ID to fork execution from"),
     graph=Depends(get_compiled_graph),
@@ -114,6 +151,7 @@ async def replay_from_checkpoint(
     mongo_db=Depends(get_mongodb_service),
     pinecone_service=Depends(get_pinecone_service),
     principal: Principal = Security(get_current_principal, scopes=["admin:replay"]),
+    _rate: None = Depends(enforce_user_rate_limit),
 ):
     """
     Forks graph execution from a specific MongoDB-backed checkpoint.
@@ -149,9 +187,11 @@ async def replay_from_checkpoint(
 @limiter.limit("20/minute")
 async def get_thread_history(
     request: Request,
+    response: Response,
     thread_id: str,
     graph=Depends(get_compiled_graph),
     principal: Principal = Security(get_current_principal, scopes=["query:read"]),
+    _rate: None = Depends(enforce_user_rate_limit),
 ):
     """Retrieves all checkpoint snapshots for a thread, newest-to-oldest (for debugging)."""
     config = {"configurable": {"thread_id": thread_id}}
@@ -168,6 +208,23 @@ async def get_thread_history(
         raise HTTPException(status_code=404, detail=f"No history found for thread_id '{thread_id}'")
 
     return ThreadHistoryResponse(thread_id=thread_id, history=history)
+
+
+@router.get("/usage", response_model=UsageResponse)
+@limiter.limit("30/minute")
+async def get_usage(
+    request: Request,
+    response: Response,
+    usage_service: UsageService = Depends(get_usage_service),
+    principal: Principal = Security(get_current_principal, scopes=["query:read"]),
+    _rate: None = Depends(enforce_user_rate_limit),
+):
+    """Retrieve usage summary for the authenticated user."""
+    usage_data = await usage_service.get_user_usage(principal.user_id)
+    if not usage_data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UsageResponse(**usage_data)
+
 
 
 def _build_response(thread_id: str, result: dict) -> ComplianceQueryResponse:
