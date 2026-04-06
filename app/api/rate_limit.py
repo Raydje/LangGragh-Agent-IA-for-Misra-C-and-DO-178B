@@ -22,6 +22,7 @@ object — no duplicate DB/auth overhead.
 from __future__ import annotations
 
 import time
+import uuid
 
 from fastapi import Depends, HTTPException, Request, Response, Security
 
@@ -89,8 +90,8 @@ async def enforce_user_rate_limit(
             pipe.zremrangebyscore(redis_key, "-inf", window_start)
             # Count requests still in the window
             pipe.zcard(redis_key)
-            # Add current request timestamp (score=timestamp, member=unique float)
-            pipe.zadd(redis_key, {str(now): now})
+            # Add current request timestamp (score=timestamp, member=unique string)
+            pipe.zadd(redis_key, {f"{now}:{uuid.uuid4()}": now})
             # Ensure key expires (avoids orphaned keys for inactive users)
             pipe.expire(redis_key, window_seconds * 2)
             results = await pipe.execute()
@@ -180,6 +181,12 @@ async def enforce_user_budget(
     response.headers["X-Budget-Remaining"] = f"{budget_remaining:.6f}"
 
     if not is_within_budget:
+        logger.info(
+            "[BudgetCheck] User exceeded budget",
+            user_id=principal.user_id,
+            current_cost=current_cost,
+            max_budget=max_budget
+        )
         raise HTTPException(
             status_code=429,
             detail={

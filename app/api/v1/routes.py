@@ -80,6 +80,7 @@ async def query_compliance(
 
     thread_id = body.thread_id or str(uuid.uuid4())
     status_code = 200
+    result = None  # Initialize before try block for finally access
 
     try:
         config = {"configurable": {"thread_id": thread_id,
@@ -95,7 +96,7 @@ async def query_compliance(
     finally:
         # Record usage regardless of success/failure so cost is always tracked.
         # On exception the result dict may not exist — use safe defaults.
-        _result = locals().get("result") or {}
+        _result = result if result is not None else {}
         await usage_service.record_usage(
             user_id=principal.user_id,
             endpoint="/api/v1/query",
