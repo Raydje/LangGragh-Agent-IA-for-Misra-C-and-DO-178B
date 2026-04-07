@@ -87,9 +87,9 @@ async def test_critique_approves_perfect_validation():
     result = await critique_node(state)
 
     _assert_base_shape(result)
-    assert (
-        result["critique_approved"] is True
-    ), f"Expected critique_approved=True for a perfect validation. Got False.\nFeedback: {result['critique_feedback']}"
+    assert result["critique_approved"] is True, (
+        f"Expected critique_approved=True for a perfect validation. Got False.\nFeedback: {result['critique_feedback']}"
+    )
 
 
 async def test_critique_rejects_hallucinated_rule():

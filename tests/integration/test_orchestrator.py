@@ -38,9 +38,9 @@ async def test_orchestrator_search_intent():
 
     result = await orchestrate(state)
 
-    assert (
-        result["intent"] == "search"
-    ), f"Expected intent='search', got '{result['intent']}'. Reasoning: {result.get('orchestrator_reasoning')}"
+    assert result["intent"] == "search", (
+        f"Expected intent='search', got '{result['intent']}'. Reasoning: {result.get('orchestrator_reasoning')}"
+    )
     assert isinstance(result.get("orchestrator_reasoning"), str)
     assert len(result["orchestrator_reasoning"]) > 0
     # Token accounting must be present and non-negative
@@ -62,9 +62,9 @@ async def test_orchestrator_validate_intent():
 
     result = await orchestrate(state)
 
-    assert (
-        result["intent"] == "validate"
-    ), f"Expected intent='validate', got '{result['intent']}'. Reasoning: {result.get('orchestrator_reasoning')}"
+    assert result["intent"] == "validate", (
+        f"Expected intent='validate', got '{result['intent']}'. Reasoning: {result.get('orchestrator_reasoning')}"
+    )
     assert isinstance(result.get("orchestrator_reasoning"), str)
     assert len(result["orchestrator_reasoning"]) > 0
     assert result.get("total_tokens", 0) >= 0
@@ -84,9 +84,9 @@ async def test_orchestrator_explain_intent():
 
     result = await orchestrate(state)
 
-    assert (
-        result["intent"] == "explain"
-    ), f"Expected intent='explain', got '{result['intent']}'. Reasoning: {result.get('orchestrator_reasoning')}"
+    assert result["intent"] == "explain", (
+        f"Expected intent='explain', got '{result['intent']}'. Reasoning: {result.get('orchestrator_reasoning')}"
+    )
     assert isinstance(result.get("orchestrator_reasoning"), str)
     assert len(result["orchestrator_reasoning"]) > 0
     assert result.get("total_tokens", 0) >= 0
