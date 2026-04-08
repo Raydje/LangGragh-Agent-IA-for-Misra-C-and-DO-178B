@@ -19,6 +19,7 @@ Admin self-registration:
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import UTC, datetime
 
@@ -74,7 +75,7 @@ async def register(body: UserCreate, request: Request):
     if body.admin_token:
         if not settings.admin_registration_token:
             raise HTTPException(status_code=403, detail="Admin registration is disabled")
-        if body.admin_token != settings.admin_registration_token:
+        if not secrets.compare_digest(body.admin_token, settings.admin_registration_token):
             raise HTTPException(status_code=403, detail="Invalid admin token")
         scopes = _ADMIN_SCOPES
     else:
