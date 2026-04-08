@@ -26,7 +26,7 @@ class PineconeService:
 
             self.index = pc.Index(settings.pinecone_index_name)
             logger.info("[Startup] Pinecone connected", index=settings.pinecone_index_name)
-        except Exception as e:
+        except Exception:
             logger.warning(
                 "[Startup] Pinecone unavailable — starting in degraded mode")
             self.index = None
