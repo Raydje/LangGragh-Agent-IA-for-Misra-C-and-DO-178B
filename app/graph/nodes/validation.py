@@ -22,7 +22,9 @@ class ValidationOutput(BaseModel):
     )
     confidence_score: float = Field(description="Float between 0.0 and 1.0 indicating confidence in the assessment.")
     cited_rules: list[str] = Field(
-        description=("List of MISRA C:2023 rule IDs used in the evaluation (e.g., ['MISRA_RULE_17.4', 'MISRA_DIR_4.7']).")
+        description=(
+            "List of MISRA C:2023 rule IDs used in the evaluation (e.g., ['MISRA_RULE_17.4', 'MISRA_DIR_4.7'])."
+        )
     )
 
 
