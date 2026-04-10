@@ -1,6 +1,7 @@
 import asyncio
 
 from pinecone import Pinecone, ServerlessSpec
+from pinecone.db_data.index import Index
 
 from app.config import get_settings
 from app.utils import logger
@@ -9,6 +10,7 @@ from app.utils import logger
 class PineconeService:
     def __init__(self) -> None:
         settings = get_settings()
+        self.index: Index | None = None
         try:
             pc = Pinecone(api_key=settings.pinecone_api_key)
 
@@ -27,8 +29,7 @@ class PineconeService:
             self.index = pc.Index(settings.pinecone_index_name)
             logger.info("[Startup] Pinecone connected", index=settings.pinecone_index_name)
         except Exception:
-            logger.warning(
-                "[Startup] Pinecone unavailable — starting in degraded mode")
+            logger.warning("[Startup] Pinecone unavailable — starting in degraded mode")
             self.index = None
 
     async def query(
@@ -37,6 +38,9 @@ class PineconeService:
         top_k: int = 5,
         filter: dict | None = None,
     ) -> dict:
+        if self.index is None:
+            logger.warning("Pinecone index unavailable, skipping query.")
+            return {"matches": []}
         settings = get_settings()
         try:
             results = await asyncio.wait_for(
@@ -68,11 +72,14 @@ class PineconeService:
             return {"matches": []}
 
     async def upsert_vectors(self, vectors: list[dict]) -> int:
+        if self.index is None:
+            logger.warning("Pinecone index unavailable, skipping upsert.")
+            return 0
         batch_size = 100
         total = 0
         for i in range(0, len(vectors), batch_size):
             batch = vectors[i : i + batch_size]
-            await asyncio.to_thread(self.index.upsert, vectors=batch)  # type: ignore[arg-type]
+            await asyncio.to_thread(self.index.upsert, vectors=batch)  # type: ignore[arg-type]  # noqa: E501
             logger.info("Successfully upserted vectors to Pinecone.", number_upserted=len(batch))
             total += len(batch)
         return total
