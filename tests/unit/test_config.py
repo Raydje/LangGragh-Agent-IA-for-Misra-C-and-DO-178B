@@ -90,7 +90,7 @@ def test_settings_missing_mongodb_uri_raises():
 
 def test_settings_default_gemini_model():
     s = Settings(**_REQUIRED)
-    assert s.gemini_model == "gemini-3.1-flash-lite-preview"
+    assert s.gemini_model == "gemini-2.5-flash"
 
 
 def test_settings_default_max_input_length():
