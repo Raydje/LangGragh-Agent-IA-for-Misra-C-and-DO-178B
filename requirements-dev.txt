@@ -5,7 +5,7 @@ pytest-cov==7.1.0
 pytest-mock==3.15.1
 pytest-xdist==3.6.1
 pytest-timeout==2.4.0
-ruff==0.3.5
+ruff==0.15.9
 pre-commit==3.7.0
 types-python-jose
 mypy==1.15.0
