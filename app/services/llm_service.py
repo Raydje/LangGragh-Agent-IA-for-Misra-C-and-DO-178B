@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from langchain_core.runnables import Runnable
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel
@@ -5,6 +7,7 @@ from pydantic import BaseModel
 from app.config import get_settings
 
 
+@lru_cache(maxsize=16)
 def get_llm(temperature: float = 0.7, timeout: int = 120) -> ChatGoogleGenerativeAI:
     """
     Returns a standard Gemini model for general text generation.
