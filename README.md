@@ -1,6 +1,6 @@
-# MISRA C:2023 Compliance Validator
+# MISRA C / C++ Compliance Validator
 
-A production-quality **multi-agent system** that parses MISRA C:2023 technical standards, validates C code against them, and proposes remediated fixes. Built as a GitHub portfolio project demonstrating LLM orchestration, RAG pipelines, agentic critique loops, automated code remediation, **Multi-expert architecture** with intent-based routing, and **async-first architecture with persistent state checkpointing**.
+A production-quality **multi-agent system** that parses MISRA C:2023 and MISRA C++:2023 technical standards, validates C and C++ code against them, and proposes remediated fixes. Built as a GitHub portfolio project demonstrating LLM orchestration, RAG pipelines, agentic critique loops, automated code remediation, **Multi-expert architecture** with intent-based routing, and **async-first architecture with persistent state checkpointing**.
 
 ---
 
@@ -45,7 +45,7 @@ flowchart TD
     end
 
     subgraph LangGraph["LangGraph Pipeline (graph/builder.py)"]
-        orch["orchestrator_node\ntemp=0.0\nClassify intent: search | validate | explain\nOverrides to 'validate' if code_snippet present"]
+        orch["orchestrator_node\ntemp=0.0\nClassify intent: search | validate | explain\nOverrides to 'validate' if code_snippet present\nRoutes to standard scope from request (MISRA C or C++)"]
 
         subgraph RAG["rag_node — Hybrid Retrieval"]
             dense["Dense: Pinecone\ntop_k=5 semantic search"]
@@ -128,7 +128,7 @@ The LangGraph pipeline is a `StateGraph[ComplianceState]` with 6 nodes and 2 con
 |---|---|---|---|
 | `orchestrator_node` | Intent classification (`search` / `validate` / `explain`) | 0.0 | `OrchestratorOutput` |
 | `rag_node` | Dense vector search (Pinecone) + full rule fetch (MongoDB) | — | `retrieved_rules`, metadata |
-| `validation_node` | MISRA C compliance audit with cited rules | 0.1 | `ValidationOutput` |
+| `validation_node` | MISRA C / C++ compliance audit with cited rules | 0.1 | `ValidationOutput` |
 | `critique_node` | 5-criteria hallucination review | 0.0 | `CritiqueOutput` |
 | `remedier_node` | Minimally-modified MISRA-compliant code generation | 0.2 | `RemediationOutput` |
 | `assemble_node` | Formats `final_response` string by intent (no I/O) | — | — |
@@ -200,13 +200,13 @@ LangGraph-Agent-IA-for-Misra-C/
 │       └── ingest.py                    # MISRA parser → MongoDB + Pinecone ingestion
 │
 ├── data/
-│   ├── misra_c_2023__headlines_for_cppcheck.txt   # ~250+ raw MISRA C:2023 rule definitions
+│   ├── misra_c_2023__headlines_for_cppcheck.txt       # ~250+ raw MISRA C:2023 rule definitions
+│   ├── misra_c_plus_plus_2023__headlines_for_cppcheck.txt  # MISRA C++:2023 rule definitions
 │   └── golden_dataset.json              # 10+ E2E test cases for non-regression suite
 │
 ├── deploy/
 │   └── k8s/                             # Kubernetes manifests (Deployment, Ingress, etc.)
 │
-├── bruno_collection/                    # Bruno API client collection for local testing
 │
 └── tests/
     ├── conftest.py                      # Session-wide settings override with dummy keys
@@ -236,13 +236,23 @@ LangGraph-Agent-IA-for-Misra-C/
 
 Swagger UI is available at `http://localhost:8000/docs` (root `/` redirects there). The "Authorize" button in Swagger posts to `/api/v1/auth/token` automatically.
 
-### Example: Validate a code snippet
+### Example: Validate a C code snippet
 
 ```json
 {
   "query": "Does this code handle memory allocation safely?",
   "code_snippet": "char *p = malloc(n);",
   "standard": "MISRA C:2023"
+}
+```
+
+### Example: Validate a C++ code snippet
+
+```json
+{
+  "query": "Does this code violate any MISRA C++ rules?",
+  "code_snippet": "void* p = reinterpret_cast<void*>(0xDEADBEEF);",
+  "standard": "MISRA C++:2023"
 }
 ```
 
@@ -264,6 +274,15 @@ Pass a `thread_id` from a previous response to continue the same session. Omit i
 {
   "query": "What does MISRA C:2023 say about pointer arithmetic?",
   "standard": "MISRA C:2023"
+}
+```
+
+Set `"standard": "MISRA C++:2023"` to query against the C++ ruleset instead:
+
+```json
+{
+  "query": "What does MISRA C++:2023 say about reinterpret_cast?",
+  "standard": "MISRA C++:2023"
 }
 ```
 
@@ -483,20 +502,20 @@ Every external call has its own configurable timeout enforced with `asyncio.wait
 ## Agent Pipeline Detail
 
 ### Orchestrator Node (`temp=0.0`)
-Classifies the user's intent as `search`, `validate`, or `explain`. If a `code_snippet` is present in the request, intent is always overridden to `validate`. Outputs a structured `OrchestratorOutput` Pydantic object and hardcodes `standard="MISRA C:2023"`.
+Classifies the user's intent as `search`, `validate`, or `explain`. If a `code_snippet` is present in the request, intent is always overridden to `validate`. The standard (e.g. `"MISRA C:2023"` or `"MISRA C++:2023"`) is read from the request `standard` field and propagated through the graph — defaulting to `"MISRA C:2023"` if not provided. Outputs a structured `OrchestratorOutput` Pydantic object.
 
 ### RAG Node — Vector Retrieval
 
 Performs three sequential async operations per request:
 
 1. **Embed** — queries `GoogleGenerativeAIEmbeddings.aembed_query()` to produce a 768-dim vector.
-2. **Pinecone search** — `top_k=5` cosine similarity search filtered by `{"scope": "MISRA C:2023"}` to prevent cross-standard contamination.
+2. **Pinecone search** — `top_k=5` cosine similarity search filtered by the request's `standard` (e.g. `{"scope": "MISRA C:2023"}` or `{"scope": "MISRA C++:2023"}`) to prevent cross-standard contamination.
 3. **MongoDB fetch** — decomposes Pinecone vector IDs (format: `MISRA_RULE_15.1` or `MISRA_DIR_4.1`) back into `$or` queries using a regex, then fetches full rule documents from the `compliance_db.rules` collection.
 
 Results are sorted by `relevance_score` descending before being written to state. If Pinecone returns no matches, MongoDB is not called.
 
 ### Validation Node (`temp=0.1`)
-Checks C code against the retrieved MISRA rules. Returns a structured JSON verdict with `is_compliant`, `confidence_score`, and `cited_rules`. Handles `critique_feedback` from the critique node on re-runs.
+Checks C or C++ code against the retrieved MISRA rules for the requested standard. Returns a structured JSON verdict with `is_compliant`, `confidence_score`, and `cited_rules`. Handles `critique_feedback` from the critique node on re-runs.
 
 ### Critique Node (`temp=0.0`)
 Reviews the validation output against 5 explicit hallucination criteria:
@@ -633,7 +652,7 @@ uvicorn main:app --reload
 curl -X POST http://localhost:8000/api/v1/seed
 ```
 
-This parses `data/misra_c_2023__headlines_for_cppcheck.txt`, upserts all rules into `compliance_db.rules` (MongoDB), generates 768-dim embeddings, and uploads them to the Pinecone index. Re-running is safe — MongoDB upserts are idempotent via `ReplaceOne` with `upsert=True`.
+This parses both `data/misra_c_2023__headlines_for_cppcheck.txt` and `data/misra_c_plus_plus_2023__headlines_for_cppcheck.txt`, upserts all rules into `compliance_db.rules` (MongoDB), generates 768-dim embeddings, and uploads them to the Pinecone index under their respective scopes (`MISRA C:2023` and `MISRA C++:2023`). Re-running is safe — MongoDB upserts are idempotent via `ReplaceOne` with `upsert=True`.
 
 ### 5. Health check
 

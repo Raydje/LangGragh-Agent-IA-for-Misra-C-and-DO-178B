@@ -1,63 +1,69 @@
-MyProjectCv/
-├── main.py                       # FastAPI entry → uvicorn main:app --reload
+```
+LangGraph-Agent-IA-for-Misra-C/
+├── main.py                              # FastAPI app factory + lifespan (MongoDB checkpoint)
 ├── requirements.txt
-├── docker-compose.yml
-├── Dockerfile
+├── pytest.ini
+├── docker-compose.yml                   # Local stack (API, MongoDB, Redis)
+├── Dockerfile                           # Multi-stage production build
 │
 ├── app/
-│   ├── config.py                 # Pydantic Settings (.env loader)
-│   ├── utils.py                  # structlog logger initialization
-│   ├── models_pricing.py         # Gemini model pricing table
-│   │
-│   ├── auth/                     # Authentication sub-package
-│   │   ├── models.py             # User, Token, API Key domain models
-│   │   ├── service.py            # Crypto primitives, JWT & API Key logic
-│   │   ├── dependencies.py       # Dual-token JWT + API key resolver
-│   │   └── router.py             # Auth endpoints (/api/v1/auth)
+│   ├── config.py                        # Pydantic Settings (lru_cache), CORS, timeout config
+│   ├── utils.py                         # structlog initialization, helper functions
+│   ├── models_pricing.py                # Gemini model pricing table (30+ models)
 │   │
 │   ├── models/
-│   │   └── state.py              # ComplianceState TypedDict (LangGraph state)
+│   │   └── state.py                     # ComplianceState TypedDict (with token tracking reducers)
 │   │
 │   ├── graph/
-│   │   ├── builder.py            # StateGraph wiring + assemble_node (inline)
-│   │   ├── edges.py              # Conditional routing logic
+│   │   ├── builder.py                   # build_graph() with MongoDBSaver + inline assemble_node
+│   │   ├── edges.py                     # route_after_rag, should_loop_or_finish
 │   │   └── nodes/
-│   │       ├── orchestrator.py   # Intent classifier (search/validate/explain)
-│   │       ├── rag.py            # Hybrid search: Pinecone + MongoDB
-│   │       ├── validation.py     # LLM compliance check (temp=0.1)
-│   │       ├── critique.py       # Hallucination reviewer (temp=0.0)
-│   │       └── remedier.py       # Remediation suggester (temp=0.2)
+│   │       ├── orchestrator.py          # Intent classifier (async, structured output)
+│   │       ├── rag.py                   # Hybrid retrieval: Pinecone → MongoDB (async)
+│   │       ├── validation.py            # MISRA compliance checker (async, structured output)
+│   │       ├── critique.py              # 5-criteria hallucination reviewer (async)
+│   │       └── remedier.py              # Code remediation (async, structured output)
 │   │
 │   ├── services/
-│   │   ├── llm_service.py        # Gemini / LangChain wrappers
-│   │   ├── embedding_service.py  # gemini-embedding-001
-│   │   ├── pinecone_service.py   # Vector DB operations
-│   │   ├── mongodb_service.py    # Rule storage + Checkpointing support
-│   │   ├── usage_service.py      # Token/Cost tracking service
-│   │   └── service_container.py  # Singleton service registry
+│   │   ├── llm_service.py               # get_llm(), get_structured_llm() wrappers
+│   │   ├── embedding_service.py         # Singleton, async embed + store
+│   │   ├── pinecone_service.py          # Vector query/upsert via asyncio.to_thread
+│   │   ├── mongodb_service.py           # Async Motor CRUD (rules) + sync pymongo (checkpoints)
+│   │   ├── usage_service.py             # User-specific token and cost tracking
+│   │   └── service_container.py         # Singleton container for easy service access
 │   │
 │   ├── api/
-│   │   ├── dependencies.py       # Graph & DB dependency injection
-│   │   ├── rate_limit.py         # Redis-backed rate limiter
+│   │   ├── dependencies.py              # Graph + DB dependencies, rate limiter injection
+│   │   ├── rate_limit.py                # Redis-backed async rate limiter
 │   │   └── v1/
-│   │       ├── routes.py         # Main API endpoints (/query, /replay, /history)
-│   │       ├── requests.py       # API Pydantic request models
-│   │       └── responses.py      # API Pydantic response models
+│   │       ├── routes.py                # /health, /query, /seed, /replay, /history, /usage
+│   │       ├── requests.py              # API Request schemas (Pydantic)
+│   │       └── responses.py             # API Response schemas (Pydantic)
+│   │
+│   ├── auth/
+│   │   ├── models.py                    # User, Token, and API Key schemas
+│   │   ├── service.py                   # bcrypt, JWT, API key generation logic
+│   │   ├── dependencies.py              # get_current_principal (dual JWT/API-key resolver)
+│   │   └── router.py                    # /auth/register, /token, /refresh, /api-keys
 │   │
 │   └── data/
-│       └── ingest.py             # MISRA ingestion pipeline
+│       └── ingest.py                    # MISRA parser → MongoDB + Pinecone ingestion
 │
 ├── data/
-│   ├── misra_c_2023__headlines_for_cppcheck.txt
-│   └── golden_dataset.json
+│   ├── misra_c_2023__headlines_for_cppcheck.txt       # ~250+ raw MISRA C:2023 rule definitions
+│   ├── misra_c_plus_plus_2023__headlines_for_cppcheck.txt  # MISRA C++:2023 rule definitions
+│   └── golden_dataset.json              # 10+ E2E test cases for non-regression suite
 │
 ├── deploy/
-│   └── k8s/                      # Kubernetes resources
+│   └── k8s/                             # Kubernetes manifests (Deployment, Ingress, etc.)
+│
 │
 └── tests/
-    ├── unit/                     # Isolated component tests
-    ├── integration/              # Contract tests for external services
-    └── non_regression/           # Golden dataset E2E tests
+    ├── conftest.py                      # Session-wide settings override with dummy keys
+    ├── unit/                            # Unit tests for nodes, services, and API
+    ├── integration/                     # Live API tests (requires mocked or real services)
+    └── non_regression/                  # E2E tests against golden dataset (TNR suite)
+```
 
 
 ---
