@@ -129,6 +129,41 @@ async def test_excludes_id_field_from_projection():
     assert projection == {"_id": 0}
 
 
+@pytest.mark.asyncio
+async def test_cpp_3part_id_returns_annotated_doc():
+    doc = {"rule_type": "RULE", "section": 5, "group": 13, "rule_number": 1, "title": "Literal suffix"}
+    svc = _make_service([doc])
+    result = await svc.get_misra_rules_by_pinecone_ids(["MISRA_RULE_5.13.1"])
+
+    assert len(result) == 1
+    assert result[0]["rule_id"] == "MISRA_RULE_5.13.1"
+
+
+@pytest.mark.asyncio
+async def test_cpp_3part_id_or_condition_includes_group():
+    doc = {"rule_type": "RULE", "section": 5, "group": 13, "rule_number": 1}
+    svc = _make_service([doc])
+    await svc.get_misra_rules_by_pinecone_ids(["MISRA_RULE_5.13.1"])
+
+    call_filter = svc.collection.find.call_args[0][0]
+    assert {"rule_type": "RULE", "section": 5, "group": 13, "rule_number": 1} in call_filter["$or"]
+
+
+@pytest.mark.asyncio
+async def test_mixed_c_and_cpp_ids_both_annotated():
+    docs = [
+        {"rule_type": "RULE", "section": 15, "rule_number": 1, "title": "C rule"},
+        {"rule_type": "RULE", "section": 5, "group": 13, "rule_number": 1, "title": "C++ rule"},
+    ]
+    svc = _make_service(docs)
+    result = await svc.get_misra_rules_by_pinecone_ids(["MISRA_RULE_15.1", "MISRA_RULE_5.13.1"])
+
+    assert len(result) == 2
+    rule_ids = {doc["rule_id"] for doc in result}
+    assert "MISRA_RULE_15.1" in rule_ids
+    assert "MISRA_RULE_5.13.1" in rule_ids
+
+
 # ---------------------------------------------------------------------------
 # MongoDBCheckpointService.__init__ and close
 # ---------------------------------------------------------------------------
@@ -311,7 +346,7 @@ async def test_insert_rules_skips_insert_when_empty():
 # ---------------------------------------------------------------------------
 
 
-async def test_create_indexes_drops_old_index_then_creates_new():
+async def test_create_indexes_drops_old_indexes_then_creates_new():
     svc = object.__new__(MongoDBService)
     svc.collection = MagicMock()
     svc.collection.drop_index = AsyncMock()
@@ -319,7 +354,10 @@ async def test_create_indexes_drops_old_index_then_creates_new():
 
     await svc.create_indexes()
 
-    svc.collection.drop_index.assert_called_once_with("section_1_rule_number_1")
+    # Both legacy index names should be attempted
+    drop_calls = [call.args[0] for call in svc.collection.drop_index.call_args_list]
+    assert "section_1_rule_number_1" in drop_calls
+    assert "rule_type_1_section_1_rule_number_1" in drop_calls
     svc.collection.create_index.assert_called_once()
 
 

@@ -47,6 +47,18 @@ def _make_rule(section: int = 1, rule_number: int = 1, rule_type: str = "RULE") 
     }
 
 
+def _make_cpp_rule(section: int = 5, group: int = 13, rule_number: int = 1, rule_type: str = "RULE") -> dict:
+    return {
+        "scope": "MISRA C++:2023",
+        "rule_type": rule_type,
+        "section": section,
+        "group": group,
+        "rule_number": rule_number,
+        "category": "Required",
+        "full_text": f"CPP Rule {section}.{group}.{rule_number} text.",
+    }
+
+
 # ---------------------------------------------------------------------------
 # get_embedding
 # ---------------------------------------------------------------------------
@@ -133,6 +145,54 @@ async def test_embed_and_store_uses_full_text_for_embedding():
 
     texts_embedded = svc.embeddings.aembed_documents.call_args[0][0]
     assert texts_embedded == ["unique rule text content"]
+
+
+# ---------------------------------------------------------------------------
+# EmbeddingService.__init__
+# ---------------------------------------------------------------------------
+
+
+async def test_embed_and_store_cpp_rule_builds_3part_vector_id():
+    vec = [0.1] * 768
+    svc = _make_service(vec)
+    svc.embeddings.aembed_documents = AsyncMock(return_value=[vec])
+    pinecone = _make_pinecone()
+
+    rules = [_make_cpp_rule(section=5, group=13, rule_number=1)]
+    await svc.embed_and_store(rules, pinecone)
+
+    upsert_call = pinecone.upsert_vectors.call_args[0][0]
+    assert upsert_call[0]["id"] == "MISRA_RULE_5.13.1"
+
+
+async def test_embed_and_store_cpp_metadata_includes_group():
+    vec = [0.2] * 768
+    svc = _make_service(vec)
+    svc.embeddings.aembed_documents = AsyncMock(return_value=[vec])
+    pinecone = _make_pinecone()
+
+    rules = [_make_cpp_rule(section=5, group=13, rule_number=1)]
+    await svc.embed_and_store(rules, pinecone)
+
+    vectors = pinecone.upsert_vectors.call_args[0][0]
+    meta = vectors[0]["metadata"]
+    assert meta["scope"] == "MISRA C++:2023"
+    assert meta["group"] == 13
+    assert meta["rule_number"] == 1
+
+
+async def test_embed_and_store_c_rule_metadata_has_no_group_key():
+    vec = [0.3] * 768
+    svc = _make_service(vec)
+    svc.embeddings.aembed_documents = AsyncMock(return_value=[vec])
+    pinecone = _make_pinecone()
+
+    rules = [_make_rule(section=15, rule_number=1)]
+    await svc.embed_and_store(rules, pinecone)
+
+    vectors = pinecone.upsert_vectors.call_args[0][0]
+    meta = vectors[0]["metadata"]
+    assert "group" not in meta
 
 
 # ---------------------------------------------------------------------------
