@@ -49,7 +49,7 @@ async def validation_node(state: ComplianceState) -> dict[str, Any]:
     # internal weights, so we inject the full retrieved rules into the context window here.
     rules_context = "\n\n".join(
         [
-            f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+            f"Rule ID: {r.get('rule_id', 'Unknown')}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r.get('title', 'Untitled')}\nText: {r.get('full_text', 'No text available.')}"
             for r in rules
         ]
     )

@@ -37,7 +37,7 @@ async def critique_node(state: ComplianceState) -> dict[str, Any]:
     cited_rules = state.get("cited_rules", [])
     is_compliant = state.get("is_compliant", False)
 
-    actual_retrieved_rule_ids = [r["rule_id"] for r in rules]
+    actual_retrieved_rule_ids = [r.get("rule_id", "N/A") for r in rules]
     logger.info(
         "Critique_node", validation_result=validation_result, cited_rules=cited_rules, is_compliant=is_compliant
     )

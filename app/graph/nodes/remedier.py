@@ -41,15 +41,15 @@ async def remediate_code(state: ComplianceState) -> dict[str, Any]:
     # increase the chance of hallucinating unnecessary code changes.
     cited_set = set(cited_rules)
     cited_rules_context = "\n\n".join(
-        f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+        f"Rule ID: {r.get('rule_id', 'N/A')}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r.get('title', 'Untitled')}\nText: {r.get('full_text', 'No text available.')}"
         for r in retrieved_rules
-        if r["rule_id"] in cited_set
+        if r.get("rule_id") in cited_set
     )
     if not cited_rules_context:
         # Fallback: show all retrieved rules if none match (e.g. ID format mismatch)
         cited_rules_context = (
             "\n\n".join(
-                f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+                f"Rule ID: {r.get('rule_id', 'N/A')}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r.get('title', 'Untitled')}\nText: {r.get('full_text', 'No text available.')}"
                 for r in retrieved_rules
             )
             or "No rule details available."

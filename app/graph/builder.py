@@ -48,14 +48,20 @@ async def assemble_node(state: ComplianceState) -> dict[str, str]:
         if not rules:
             final_answer = f"No rules found for your query in {standard}."
         else:
-            rules_text = "\n".join(f"[{r['rule_id']}] {r['full_text']}" for r in rules)
+            rules_text = "\n".join(
+                f"[{r.get('rule_id', 'N/A')}] {r.get('full_text', r.get('title', 'No content available.'))}"
+                for r in rules
+            )
             final_answer = f"Here is an explanation of relevant {standard} rules:\n{rules_text}"
     else:  # search
         rules = state.get("retrieved_rules", [])
         if not rules:
             final_answer = f"No matching rules found in {standard}."
         else:
-            rules_text = "\n".join(f"[{r['rule_id']}] ({r['section']}) {r['title']}" for r in rules)
+            rules_text = "\n".join(
+                f"[{r.get('rule_id', 'N/A')}] ({r.get('section', 'N/A')}) {r.get('title', 'Untitled Rule')}"
+                for r in rules
+            )
             final_answer = f"Relevant {standard} rules:\n{rules_text}"
 
     return {"final_response": final_answer}
