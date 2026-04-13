@@ -85,7 +85,7 @@ def _load_golden_cases() -> tuple[list[dict], list[str]]:
         query_slug = "_".join(w.strip(".,?!()[]") for w in words)
 
         # Hash of query + code_snippet to ensure uniqueness
-        fingerprint = f"{entry['query']}|{entry['code_snippet']}".encode("utf-8")
+        fingerprint = f"{entry['query']}|{entry['code_snippet']}".encode()
         short_hash = hashlib.md5(fingerprint).hexdigest()[:6]
 
         ids.append(f"{prefix}-{std_slug}-{query_slug}-{short_hash}")

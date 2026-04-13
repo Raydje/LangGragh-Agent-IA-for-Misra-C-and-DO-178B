@@ -688,10 +688,7 @@ def test_parse_misra_cpp_file_not_found_returns_empty(tmp_path):
 
 
 def test_parse_misra_cpp_multiple_rules_captured(tmp_path):
-    content = (
-        "Rule 5.13.1    Required\nFirst rule description.\n"
-        "Rule 5.13.2    Required\nSecond rule description.\n"
-    )
+    content = "Rule 5.13.1    Required\nFirst rule description.\nRule 5.13.2    Required\nSecond rule description.\n"
     (tmp_path / "rules.txt").write_text(content, encoding="utf-8")
     with _cpp_path_patcher(tmp_path):
         rules = parse_misra_cpp_file("rules.txt")
