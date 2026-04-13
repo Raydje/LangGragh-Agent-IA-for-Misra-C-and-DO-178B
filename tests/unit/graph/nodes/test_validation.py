@@ -32,6 +32,7 @@ def _base_state(**overrides) -> dict:
     state = {
         "query": "Check for memory issues",
         "code_snippet": "char *p = malloc(n);",
+        "standard": "MISRA C:2023",
         "retrieved_rules": [
             {
                 "rule_id": "MISRA_21.3",

@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from pinecone import Pinecone, ServerlessSpec
 from pinecone.db_data.index import Index
@@ -25,6 +26,8 @@ class PineconeService:
                         region=settings.pinecone_region,
                     ),
                 )
+                while not pc.describe_index(settings.pinecone_index_name).status.ready:
+                    time.sleep(1)
 
             self.index = pc.Index(settings.pinecone_index_name)
             logger.info("[Startup] Pinecone connected", index=settings.pinecone_index_name)

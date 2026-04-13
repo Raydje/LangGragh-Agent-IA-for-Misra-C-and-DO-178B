@@ -32,7 +32,10 @@ class EmbeddingService:
         vectors = []
         for rule, embedding_vector in zip(rules, all_embeddings, strict=True):
             rule_type = rule.get("rule_type", "Rule")
-            vector_id = f"MISRA_{rule_type.upper()}_{rule['section']}.{rule['rule_number']}"
+            if "group" in rule:
+                vector_id = f"MISRA_{rule_type.upper()}_{rule['section']}.{rule['group']}.{rule['rule_number']}"
+            else:
+                vector_id = f"MISRA_{rule_type.upper()}_{rule['section']}.{rule['rule_number']}"
 
             metadata = {
                 "scope": rule["scope"],
@@ -42,6 +45,8 @@ class EmbeddingService:
                 "category": rule["category"],
                 "text": rule["full_text"],
             }
+            if "group" in rule:
+                metadata["group"] = rule["group"]
 
             vectors.append({"id": vector_id, "values": embedding_vector, "metadata": metadata})
 

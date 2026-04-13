@@ -4,7 +4,6 @@ Run with: python -m app.data.ingest
 """
 
 import asyncio
-import json
 import os
 import re
 import sys
@@ -92,6 +91,129 @@ def parse_misra_file(filepath: str) -> list[dict]:
     return rules
 
 
+# MISRA C++:2023 parser — handles both Format A (Rule-X.Y.Z) and Format B (Rule X.Y.Z    Category)
+_CPP_FORMAT_A_HEADER = re.compile(r"^(Rule|Dir)-(\d+)\.(\d+)\.(\d+)\s*(.*)")
+_CPP_FORMAT_B_HEADER = re.compile(r"^(Rule|Dir)\s+(\d+)\.(\d+)\.(\d+)\s+(Required|Advisory|Mandatory|Assisted)\b")
+# Matches a category keyword (optionally preceded by description text) followed by
+# "Decidable|Undecidable Yes|No" — used to extract category from Format A continuation lines.
+_CPP_CATEGORY_SUFFIX = re.compile(
+    r"^(.*?)\s*(Required|Advisory|Mandatory|Assisted)\s+(?:Decidable|Undecidable)\s+(?:Yes|No)\s*$"
+)
+
+
+def parse_misra_cpp_file(filepath: str) -> list[dict]:
+    """
+    Parses the MISRA C++:2023 text file and extracts structured metadata.
+
+    The file contains two line formats:
+    - Format A: ``Rule-X.Y.Z optional_inline_text`` with category on a
+      later continuation line (e.g. ``Advisory Decidable Yes``).
+    - Format B: ``Rule X.Y.Z    Category`` with the description on the
+      next line.
+
+    All C++ rule numbers have three parts (section.group.rule_number),
+    stored as separate ``section``, ``group``, and ``rule_number`` int fields.
+    """
+    rules: list[dict] = []
+
+    base_dir = Path(__file__).resolve().parent.parent.parent
+    file_path = base_dir / filepath
+
+    logger.info("📂 Attempting to read file", file_path=file_path)
+
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        logger.error("Error: Could not find file", file_path=file_path)
+        return []
+
+    current_rule: dict[str, Any] | None = None
+
+    for line in lines:
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        # --- Format B header: "Rule X.Y.Z    Required" ---
+        m_b = _CPP_FORMAT_B_HEADER.match(line)
+        if m_b:
+            if current_rule and current_rule.get("full_text") and current_rule.get("category"):
+                rules.append(current_rule)
+            current_rule = {
+                "scope": "MISRA C++:2023",
+                "rule_type": "RULE" if m_b.group(1) == "Rule" else "DIR",
+                "section": int(m_b.group(2)),
+                "group": int(m_b.group(3)),
+                "rule_number": int(m_b.group(4)),
+                "category": m_b.group(5),
+                "full_text": "",
+            }
+            continue
+
+        # --- Format A header: "Rule-X.Y.Z optional_inline_text" ---
+        m_a = _CPP_FORMAT_A_HEADER.match(line)
+        if m_a:
+            if current_rule and current_rule.get("full_text") and current_rule.get("category"):
+                rules.append(current_rule)
+            inline = m_a.group(5).strip()
+            category = None
+            full_text = ""
+
+            # Check if the inline text already contains the category suffix
+            m_cat = _CPP_CATEGORY_SUFFIX.match(inline)
+            if m_cat:
+                full_text = m_cat.group(1).strip()
+                category = m_cat.group(2)
+            else:
+                full_text = inline
+
+            current_rule = {
+                "scope": "MISRA C++:2023",
+                "rule_type": "RULE" if m_a.group(1) == "Rule" else "DIR",
+                "section": int(m_a.group(2)),
+                "group": int(m_a.group(3)),
+                "rule_number": int(m_a.group(4)),
+                "category": category,
+                "full_text": full_text,
+            }
+            continue
+
+        # --- Continuation line ---
+        if current_rule is None:
+            continue
+
+        if current_rule["category"] is None:
+            # Format A rule — still looking for the category marker
+            m_cat = _CPP_CATEGORY_SUFFIX.match(line)
+            if m_cat:
+                desc_part = m_cat.group(1).strip()
+                current_rule["category"] = m_cat.group(2)
+                if desc_part:
+                    if current_rule["full_text"]:
+                        current_rule["full_text"] += " " + desc_part
+                    else:
+                        current_rule["full_text"] = desc_part
+            else:
+                if current_rule["full_text"]:
+                    current_rule["full_text"] += " " + line
+                else:
+                    current_rule["full_text"] = line
+        else:
+            # Format B rule — append description text
+            if current_rule["full_text"]:
+                current_rule["full_text"] += " " + line
+            else:
+                current_rule["full_text"] = line
+
+    # Save the last rule
+    if current_rule and current_rule.get("full_text") and current_rule.get("category"):
+        rules.append(current_rule)
+
+    return rules
+
+
 async def upload_to_mongodb(rules: list[dict], svc: MongoDBService):
     """Uploads parsed rules to MongoDB asynchronously."""
     if not rules:
@@ -109,7 +231,14 @@ async def upload_to_mongodb(rules: list[dict], svc: MongoDBService):
 
     operations = []
     for rule in rules:
-        query = {"rule_type": rule["rule_type"], "section": rule["section"], "rule_number": rule["rule_number"]}
+        query = {
+            "scope": rule["scope"],
+            "rule_type": rule["rule_type"],
+            "section": rule["section"],
+            "rule_number": rule["rule_number"],
+        }
+        if "group" in rule:
+            query["group"] = rule["group"]
         operations.append(ReplaceOne(query, rule, upsert=True))
 
     if operations:
@@ -120,30 +249,24 @@ async def upload_to_mongodb(rules: list[dict], svc: MongoDBService):
 
 
 async def main(mongodb: MongoDBService, pinecone: PineconeService, embedder: EmbeddingService) -> dict:
-    # Test the parser
-    target_file = "data/misra_c_2023__headlines_for_cppcheck.txt"
-    parsed_rules = parse_misra_file(target_file)
+    total_rules = 0
+    total_vectors = 0
 
-    if parsed_rules:
-        logger.info("✅ Successfully parsed rules!", number_of_rules=len(parsed_rules))
-        logger.info("Sample of the first parsed rule:")
-        logger.info(json.dumps(parsed_rules[0], indent=2))
+    for parse_fn, filepath in [
+        (parse_misra_file, "data/misra_c_2023__headlines_for_cppcheck.txt"),
+        (parse_misra_cpp_file, "data/misra_c_plus_plus_2023__headlines_for_cppcheck.txt"),
+    ]:
+        parsed_rules = parse_fn(filepath)
 
-        # You can also verify the last rule to ensure the loop finished correctly
-        logger.info("\nSample of the last parsed rule:")
-        logger.info(json.dumps(parsed_rules[-1], indent=2))
+        if parsed_rules:
+            standard = parsed_rules[0].get("scope", "unknown")
+            logger.info("✅ Successfully parsed rules!", number_of_rules=len(parsed_rules), standard=standard)
+            await upload_to_mongodb(parsed_rules, mongodb)
+            vectors_upserted = await embedder.embed_and_store(parsed_rules, pinecone)
+            total_rules += len(parsed_rules)
+            total_vectors += vectors_upserted
 
-        # Now upload to MongoDB
-        logger.info("2. Uploading to MongoDB...")
-        await upload_to_mongodb(parsed_rules, mongodb)
-
-        logger.info("3. Uploading to Pinecone...")
-        # Add 'await' here!
-        vectors_upserted = await embedder.embed_and_store(parsed_rules, pinecone)
-
-        return {"rules_ingested": len(parsed_rules), "vectors_upserted": vectors_upserted}
-
-    return {"rules_ingested": 0, "vectors_upserted": 0}
+    return {"rules_ingested": total_rules, "vectors_upserted": total_vectors}
 
 
 async def run_ingest_cli() -> None:

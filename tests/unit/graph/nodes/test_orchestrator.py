@@ -1,4 +1,5 @@
 import asyncio
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.graph.nodes.orchestrator import OrchestratorOutput, orchestrate
@@ -8,7 +9,7 @@ from app.graph.nodes.orchestrator import OrchestratorOutput, orchestrate
 # ---------------------------------------------------------------------------
 
 
-def _make_raw_result(intent: str, reasoning: str) -> dict:
+def _make_raw_result(intent: Literal["search", "validate", "explain"], reasoning: str) -> dict:
     """Build the dict that chain.ainvoke() returns when include_raw=True."""
     raw_mock = MagicMock()
     raw_mock.usage_metadata = {"input_tokens": 0, "output_tokens": 0}
@@ -18,7 +19,12 @@ def _make_raw_result(intent: str, reasoning: str) -> dict:
     }
 
 
-def _setup_mocks(mock_get_structured_llm, mock_template, intent: str, reasoning: str) -> MagicMock:
+def _setup_mocks(
+    mock_get_structured_llm: MagicMock,
+    mock_template: MagicMock,
+    intent: Literal["search", "validate", "explain"],
+    reasoning: str,
+) -> MagicMock:
     """
     Wire up the mock chain:
       get_structured_llm() -> structured_llm_mock
@@ -58,15 +64,35 @@ async def test_returns_intent_and_reasoning_from_llm():
 
 
 async def test_standard_is_always_hardcoded_to_misra():
+    # Now short-circuits due to code_snippet, chain not needed but patch remains for safety
+    result = await orchestrate({"query": "Check this code", "code_snippet": "int x = 0;"})
+    assert result["standard"] == "MISRA C:2023"
+
+
+async def test_short_circuit_with_code_snippet():
+    """Verify that code_snippet presence skips LLM call and returns validate intent."""
     with (
         patch("app.graph.nodes.orchestrator.get_structured_llm") as mock_get_structured_llm,
         patch("app.graph.nodes.orchestrator.ChatPromptTemplate") as mock_template,
     ):
-        _setup_mocks(mock_get_structured_llm, mock_template, "validate", "Code snippet present.")
+        result = await orchestrate({"query": "any query", "code_snippet": "void foo() {}"})
 
-        result = await orchestrate({"query": "Check this code", "code_snippet": "int x = 0;"})
+    assert result["intent"] == "validate"
+    assert result["prompt_tokens"] == 0
+    mock_get_structured_llm.assert_not_called()
+    mock_template.from_messages.assert_not_called()
 
-    assert result["standard"] == "MISRA C:2023"
+
+async def test_code_snippet_without_query_sets_default_query():
+    """Verify query is defaulted when missing but code is present."""
+    result = await orchestrate({"query": "", "code_snippet": "int x = 0;"})
+    assert result["query"] == "verify this code against misra-c"
+
+
+async def test_code_snippet_with_existing_query_preserves_query():
+    """Verify existing query is NOT overwritten by the default."""
+    result = await orchestrate({"query": "Custom check", "code_snippet": "int x = 0;"})
+    assert result["query"] == "Custom check"
 
 
 async def test_explain_intent_propagated():
@@ -92,21 +118,6 @@ async def test_returns_exactly_three_state_keys():
         result = await orchestrate({"query": "Find rules", "code_snippet": ""})
 
     assert {"intent", "orchestrator_reasoning", "standard"}.issubset(result.keys())
-
-
-async def test_chain_invoked_with_query_and_code():
-    with (
-        patch("app.graph.nodes.orchestrator.get_structured_llm") as mock_get_structured_llm,
-        patch("app.graph.nodes.orchestrator.ChatPromptTemplate") as mock_template,
-    ):
-        chain = _setup_mocks(mock_get_structured_llm, mock_template, "validate", "Code provided.")
-
-        await orchestrate({"query": "Validate code", "code_snippet": "void foo() {}"})
-
-    chain.ainvoke.assert_called_once()
-    call_kwargs = chain.ainvoke.call_args[0][0]
-    assert call_kwargs["query"] == "Validate code"
-    assert call_kwargs["code"] == "void foo() {}"
 
 
 async def test_no_code_snippet_passes_none_provided_string():

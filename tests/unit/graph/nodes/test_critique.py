@@ -31,6 +31,7 @@ def _mock_structured_llm(
 def _base_state(**overrides) -> dict:
     state = {
         "code_snippet": "int x = 0;",
+        "standard": "MISRA C:2023",
         "retrieved_rules": [{"rule_id": "MISRA_1.1", "title": "No dead code"}],
         "validation_result": "Code is compliant with all retrieved rules.",
         "cited_rules": ["MISRA_1.1"],

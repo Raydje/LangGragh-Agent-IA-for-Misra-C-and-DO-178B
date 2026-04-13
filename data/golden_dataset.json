@@ -58,5 +58,65 @@
     "query": "Is this allowed in MISRA-C? It's about if a function returns error information, then that error information shall be tested.",
     "code_snippet": "#include <stdint.h>\n uint16_t get_uint16(void);\nextern uint8_t add(uint16_t *a, uint16_t *b);\nextern void use_uint16(uint16_t val);\n\nvoid D_4_7 ( void )\n{\n    uint8_t error_status;\n    uint16_t fun_ret = get_uint16 ( );\n    uint16_t param   = get_uint16 ( );\n\n    \n    error_status = add ( &fun_ret, &param );\n    if ( error_status != 0U )\n    {\n       fun_ret = 0U;\n    }\n\n   \n    error_status = add ( &fun_ret, &param );\n    if ( error_status != 0U )\n    {\n       fun_ret = 0U;\n    }\n\n    error_status = add ( &fun_ret, &param );\n    if ( error_status != 0U )\n    {\n       fun_ret = 0U;\n    }\n\n    use_uint16 ( fun_ret );\n}",
     "standard": "MISRA C:2023"
-  }      
-]           
+  },
+  {
+    "is_compliant": false,
+    "query": "I'm working on this program and need to know if it's MISRA compliant, as I heard global variables shouldn't be used[cite: 6].",
+    "code_snippet": "int32_t system_status = 0; /* Non-compliant: Global variable */\n\nvoid update_status( void )\n{\n    system_status = 1;\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": false,
+    "query": "I'm working on this calculation and want to check if using a standard C-style cast is allowed",
+    "code_snippet": "void process_data( void )\n{\n    int32_t raw_value = 100;\n    float32_t scaled_value = (float32_t)raw_value; /* Non-compliant: C-style cast used */\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": false,
+    "query": "I'm working on this pointer assignment and need to know if it's MISRA compliant for Rule 7.11.1, which states that nullptr shall be the only form of the null-pointer-constant.",
+    "code_snippet": "void initialize_sensor( void )\n{\n    int32_t* sensor_ptr = 0; /* Non-compliant: literal 0 used instead of nullptr */\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": false,
+    "query": "I wrote this simple if-statement without braces. Does MISRA C++ allow selection statements without compound bodies?",
+    "code_snippet": "void decrement_counter( int32_t count )\n{\n    if ( count > 0 )\n        count--; /* Non-compliant: Body is not enclosed in braces */\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": false,
+    "query": "I'm working on this preprocessor code and need to know if it's MISRA compliant for Rule 19.0.2, which states that function-like macros shall not be defined.",
+    "code_snippet": "#define GET_MAX( x, y ) ( ( ( x ) > ( y ) ) ? ( x ) : ( y ) ) /* Non-compliant: Function-like macro defined */\n\nvoid compute_max( void )\n{\n    int32_t result = GET_MAX( 10, 20 );\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": true,
+    "query": "I'm writing a utility function and used an inline function instead of a #define. Does this correctly follow the MISRA guidance against function-like macros?",
+    "code_snippet": "inline int32_t get_max( int32_t x, int32_t y )\n{\n    return ( x > y ) ? x : y; /* Compliant: Inline function used instead of macro */\n}\n\nvoid compute_max( void )\n{\n    int32_t result = get_max( 10, 20 );\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": true,
+    "query": "I'm working on this program and need to know if it's MISRA compliant for Rule 6.7.2, which states that global variables shall not be used.",
+    "code_snippet": "namespace SystemMonitorNamespace{class SystemMonitor{private:int32_t system_status{ 0 };public:void update_status( void ){system_status = 1;}};}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": true,
+    "query": "I need to know if using a specific cast like static_cast is the correct way to comply with MISRA casting rules",
+    "code_snippet": "void process_data( void )\n{\n    int32_t raw_value = 100;\n    float32_t scaled_value = static_cast<float32_t>( raw_value ); /* Compliant: C++ specific cast used */\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": true,
+    "query": "I'm setting up a pointer here. Does using `nullptr` satisfy the MISRA requirements for null pointer constants?",
+    "code_snippet": "void initialize_sensor( void )\n{\n    int32_t* sensor_ptr = nullptr; /* Compliant: nullptr used */\n}",
+    "standard": "MISRA C++:2023"
+  },
+  {
+    "is_compliant": true,
+    "query": "I enclosed the body of this selection statement in curly braces. Does this make it compliant with the MISRA rule about compound statements?",
+    "code_snippet": "void decrement_counter( int32_t count )\n{\n    if ( count > 0 )\n    {\n        count--; /* Compliant: Compound statement enclosed in braces */\n    }\n}",
+    "standard": "MISRA C++:2023"
+  }        
+]

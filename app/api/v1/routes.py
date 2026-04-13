@@ -67,7 +67,7 @@ async def health_check(
 
 
 @router.post("/query", response_model=ComplianceQueryResponse)
-@limiter.limit("15/minute")
+@limiter.limit("25/minute")
 async def query_compliance(
     request: Request,
     response: Response,

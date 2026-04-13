@@ -28,3 +28,22 @@ def extracting_tokens_metadata(raw_result: dict[str, Any]) -> dict:
 
 
 logger = structlog.get_logger()
+
+rule_naming_mapping_critique = {
+    "MISRA C:2023": '"MISRA_DIR_4.7" or "MISRA_RULE_17.4"',
+    "MISRA C++:2023": '"MISRA_DIR_4.5.7" or "MISRA_RULE_2.17.4"',
+}
+rule_naming_mapping_validation = {
+    "MISRA C:2023": [
+        '"MISRA_DIR_X.Y" (e.g., "MISRA_DIR_4.7 (Mandatory)")',
+        '"MISRA_RULE_X.Y" (e.g., "MISRA_RULE_17.4 (Required)", "MISRA_RULE_1.2 (Advisory)")',
+        '"MISRA_RULE_17.4 (Required): ..." or "MISRA_DIR_4.7 (Mandatory): ..."',
+        '["MISRA_RULE_17.4", "MISRA_DIR_4.7"]',
+    ],
+    "MISRA C++:2023": [
+        '"MISRA_DIR_X.Y.Z" (e.g., "MISRA_DIR_4.5.7 (Mandatory)")',
+        '"MISRA_RULE_X.Y.Z" (e.g., "MISRA_RULE_2.17.4 (Required)", "MISRA_RULE_1.2.4 (Advisory)")',
+        '"MISRA_RULE_17.4.1 (Required): ..." or "MISRA_DIR_4.7.2 (Mandatory): ..."',
+        '["MISRA_RULE_2.17.4", "MISRA_DIR_4.5.7"]',
+    ],
+}

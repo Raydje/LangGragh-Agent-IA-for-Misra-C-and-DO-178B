@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.models.state import ComplianceState
 from app.services.llm_service import get_structured_llm
-from app.utils import extracting_tokens_metadata, logger
+from app.utils import extracting_tokens_metadata, logger, rule_naming_mapping_validation
 
 
 class ValidationOutput(BaseModel):
@@ -39,6 +39,7 @@ async def validation_node(state: ComplianceState) -> dict[str, Any]:
 
     code = state.get("code_snippet", "No code provided.")
     query = state.get("query", "")
+    standard = state.get("standard", "MISRA C:2023")
     rules = state.get("retrieved_rules", [])
     critique_feedback = state.get("critique_feedback", "")
     iteration = state.get("iteration_count", 0)
@@ -48,27 +49,30 @@ async def validation_node(state: ComplianceState) -> dict[str, Any]:
     # internal weights, so we inject the full retrieved rules into the context window here.
     rules_context = "\n\n".join(
         [
-            f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+            f"Rule ID: {r.get('rule_id', 'Unknown')}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r.get('title', 'Untitled')}\nText: {r.get('full_text', 'No text available.')}"
             for r in rules
         ]
     )
 
-    system_prompt = """You are a strict, expert compliance auditor for MISRA C:2023.
-Your task is to validate the provided C/C++ code against the provided MISRA C:2023 rules.
+    # Default mappings if standard not found
+    mapping = rule_naming_mapping_validation.get(standard, ["N/A", "N/A", "N/A", "[]"])
 
-MISRA C:2023 rule IDs follow these formats:
-- Directives: "MISRA_DIR_X.Y" (e.g., "MISRA_DIR_4.7 (Mandatory)")
-- Rules: "MISRA_RULE_X.Y" (e.g., "MISRA_RULE_17.4 (Required), "MISRA_RULE_1.2 (Advisory)")
+    system_prompt = f"""You are a strict, expert compliance auditor for {standard}.
+Your task is to validate the provided C/C++ code against the provided {standard} rules.
+
+{standard} rule IDs follow these formats:
+- Directives: {mapping[0]}
+- Rules: {mapping[1]}
 Categories are: Mandatory, Required, or Advisory.
 
 Field details:
 - "is_compliant": true only if the code fully satisfies all applicable retrieved rules.
 - "validation_result": detailed explanation of each violation or confirmation of compliance. Reference specific lines when possible.
   IMPORTANT: Every rule you mention in this field MUST be written as "Rule ID (Category)" — for example:
-  "MISRA_RULE_17.4 (Required): ..." or "MISRA_DIR_4.7 (Mandatory): ...".
+  {mapping[2]}.
   The category (Mandatory, Required, or Advisory) is provided for each rule in the context. Never omit it.
 - "confidence_score": float between 0.0 and 1.0.
-- "cited_rules": list of MISRA C:2023 rule IDs used in the evaluation (e.g., ["MISRA_RULE_17.4", "MISRA_DIR_4.7"])."""
+- "cited_rules": list of {standard} rule IDs used in the evaluation (e.g., {mapping[3]})."""
 
     critique_section = ""
     if iteration > 0 and critique_feedback:
@@ -81,8 +85,8 @@ Address all points raised above in your revised evaluation.
 
     human_content = f"""User Query: {query}
 
-Retrieved MISRA C:2023 Rules:
-{rules_context if rules_context else "No specific rules retrieved. Apply general MISRA C:2023 knowledge strictly relevant to the query."}
+Retrieved {standard} Rules:
+{rules_context if rules_context else f"No specific rules retrieved. Apply general {standard} knowledge strictly relevant to the query."}
 
 Code to Validate:
 ```c

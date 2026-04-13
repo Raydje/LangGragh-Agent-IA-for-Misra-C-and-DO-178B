@@ -41,27 +41,29 @@ async def remediate_code(state: ComplianceState) -> dict[str, Any]:
     # increase the chance of hallucinating unnecessary code changes.
     cited_set = set(cited_rules)
     cited_rules_context = "\n\n".join(
-        f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+        f"Rule ID: {r.get('rule_id', 'N/A')}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r.get('title', 'Untitled')}\nText: {r.get('full_text', 'No text available.')}"
         for r in retrieved_rules
-        if r["rule_id"] in cited_set
+        if r.get("rule_id") in cited_set
     )
     if not cited_rules_context:
         # Fallback: show all retrieved rules if none match (e.g. ID format mismatch)
         cited_rules_context = (
             "\n\n".join(
-                f"Rule ID: {r['rule_id']}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r['title']}\nText: {r['full_text']}"
+                f"Rule ID: {r.get('rule_id', 'N/A')}\nCategory: {r.get('category', 'Unknown')}\nTitle: {r.get('title', 'Untitled')}\nText: {r.get('full_text', 'No text available.')}"
                 for r in retrieved_rules
             )
             or "No rule details available."
         )
 
-    system_prompt = """You are a Senior Embedded C Software Engineer and an expert in the MISRA C:2023 standard.
-Your task is to fix the provided C code snippet so that it complies with the cited MISRA C:2023 rules.
+    standard = state.get("standard", "MISRA C:2023")
+
+    system_prompt = f"""You are a Senior Embedded C Software Engineer and an expert in the {standard} standard.
+Your task is to fix the provided C code snippet so that it complies with the cited {standard} rules.
 
 CONSTRAINTS — follow all of them without exception:
 1. Apply ONLY the minimal changes necessary to resolve each violation. Do not refactor, rename, or restructure code beyond what is strictly required.
 2. Preserve the original functionality exactly. The fixed code must behave identically to the original in all compliant scenarios.
-3. Your fix must NOT introduce any new MISRA C:2023 violations.
+3. Your fix must NOT introduce any new {standard} violations.
 4. Treat rule categories with the correct priority:
    - Mandatory: MUST be fixed. There is no deviation permitted.
    - Required: MUST be fixed unless a formal deviation has been documented (assume none here).

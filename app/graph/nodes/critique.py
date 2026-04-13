@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.models.state import ComplianceState, CritiqueEntry
 from app.services.llm_service import get_structured_llm
-from app.utils import extracting_tokens_metadata, logger
+from app.utils import extracting_tokens_metadata, logger, rule_naming_mapping_critique
 
 
 class CritiqueOutput(BaseModel):
@@ -23,7 +23,7 @@ class CritiqueOutput(BaseModel):
 async def critique_node(state: ComplianceState) -> dict[str, Any]:
     """
     Meta-reviewer that detects hallucinations or logical flaws in the validation result.
-    Evaluates the output against 5 strict criteria specific to MISRA C:2023.
+    Evaluates the output against 5 strict criteria specific to the given standard.
     """
     logger.info("--- NODE: CRITIQUE ---")
 
@@ -32,23 +32,24 @@ async def critique_node(state: ComplianceState) -> dict[str, Any]:
 
     code = state.get("code_snippet", "No code provided.")
     rules = state.get("retrieved_rules", [])
+    standard = state.get("standard", "MISRA C:2023")
     validation_result = state.get("validation_result", "")
     cited_rules = state.get("cited_rules", [])
     is_compliant = state.get("is_compliant", False)
 
-    actual_retrieved_rule_ids = [r["rule_id"] for r in rules]
+    actual_retrieved_rule_ids = [r.get("rule_id", "N/A") for r in rules]
     logger.info(
         "Critique_node", validation_result=validation_result, cited_rules=cited_rules, is_compliant=is_compliant
     )
 
-    system_prompt = """You are a Senior Quality Assurance Reviewer for MISRA C:2023 compliance.
+    system_prompt = f"""You are a Senior Quality Assurance Reviewer for {standard} compliance.
 Your job is to review the validation report produced by a junior AI agent and determine if it is accurate, logical, and free of hallucinations.
 
 Evaluate the junior agent's output against these 5 CRITERIA:
-1. Rule Hallucination: Did the agent cite a MISRA C:2023 rule ID that was NOT in the 'Actually Retrieved Rules' list?
+1. Rule Hallucination: Did the agent cite a {standard} rule ID that was NOT in the 'Actually Retrieved Rules' list?
 2. Logical Consistency: Does the explanation match the 'is_compliant' boolean? (e.g., it cannot say "code is compliant" while is_compliant is false).
 3. Code Grounding: Does the explanation specifically reference the provided C/C++ code, or is it too generic?
-4. Standard Accuracy: Does the agent correctly use MISRA C:2023 rule ID formats ("MISRA_DIR_4.7" or "MISRA_RULE_17.4") AND include the rule category (Mandatory, Required, or Advisory) in the explanation for each cited rule using the format "Rule ID (Category): ..."? Reject if any cited rule in the validation_result text is missing its category.
+4. Standard Accuracy: Does the agent correctly use {standard} rule ID formats ({rule_naming_mapping_critique.get(standard, "")}) AND include the rule category (Mandatory, Required, or Advisory) in the explanation for each cited rule using the format "Rule ID (Category): ..."? Reject if any cited rule in the validation_result text is missing its category.
 5. Completeness: Did the agent address the actual violation or compliance question implied by the code?
 
 - "approved": true only if the validation passes ALL 5 criteria.
@@ -60,7 +61,7 @@ Code to Validate:
 {code}
 ```
 
-Actually Retrieved MISRA C:2023 Rule IDs (the only valid IDs): {actual_retrieved_rule_ids}
+Actually Retrieved {standard} Rule IDs (the only valid IDs): {actual_retrieved_rule_ids}
 
 --- JUNIOR AGENT'S OUTPUT TO REVIEW ---
 Validation Result Text: "{validation_result}"

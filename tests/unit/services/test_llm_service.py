@@ -57,6 +57,7 @@ class _DummySchema(BaseModel):
 
 @patch("app.services.llm_service.ChatGoogleGenerativeAI")
 def test_get_structured_llm_calls_with_structured_output(mock_llm_cls):
+    get_llm.cache_clear()
     fake_llm = MagicMock()
     fake_chain = MagicMock()
     fake_llm.with_structured_output.return_value = fake_chain
@@ -70,6 +71,7 @@ def test_get_structured_llm_calls_with_structured_output(mock_llm_cls):
 
 @patch("app.services.llm_service.ChatGoogleGenerativeAI")
 def test_get_structured_llm_raw_bool_false_passes_through(mock_llm_cls):
+    get_llm.cache_clear()
     fake_llm = MagicMock()
     mock_llm_cls.return_value = fake_llm
 

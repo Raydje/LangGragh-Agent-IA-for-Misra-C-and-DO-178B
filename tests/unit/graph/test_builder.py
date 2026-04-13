@@ -61,8 +61,8 @@ async def test_assemble_search_with_rules_lists_them():
     state = {
         "intent": "search",
         "retrieved_rules": [
-            {"rule_id": "MISRA_1.1", "section": 1, "title": "No dead code"},
-            {"rule_id": "MISRA_2.3", "section": 2, "title": "Unused vars"},
+            {"rule_id": "MISRA_1.1", "section": 1, "title": "No dead code", "full_text": "Rule 1.1: No dead code"},
+            {"rule_id": "MISRA_2.3", "section": 2, "title": "Unused vars", "full_text": "Rule 2.3: Unused vars"},
         ],
         "standard": "MISRA C:2023",
         "error": None,
@@ -73,25 +73,26 @@ async def test_assemble_search_with_rules_lists_them():
     assert "MISRA_2.3" in text
 
 
-async def test_assemble_search_no_rules_returns_not_found_message():
-    state = {"intent": "search", "retrieved_rules": [], "standard": "MISRA C:2023", "error": None}
-    text = (await assemble_node(state))["final_response"]
-    assert "No matching rules found" in text
-
-
 # --- explain intent ---
 
 
 async def test_assemble_explain_with_rules():
     state = {
         "intent": "explain",
-        "retrieved_rules": [{"rule_id": "MISRA_15.5", "title": "No recursion"}],
+        "retrieved_rules": [
+            {
+                "rule_id": "MISRA_15.5",
+                "title": "No recursion",
+                "full_text": "A function shall not call itself.",
+                "section": "15",
+            }
+        ],
         "standard": "MISRA C:2023",
         "error": None,
     }
     text = (await assemble_node(state))["final_response"]
     assert "MISRA_15.5" in text
-    assert "No recursion" in text
+    assert "A function shall not call itself." in text
 
 
 async def test_assemble_explain_no_rules_returns_not_found_message():

@@ -14,15 +14,15 @@ Running
 
 Dataset
 -------
-data/golden_dataset.json — 10 entries (5 compliant, 5 non-compliant).
+data/golden_dataset.json — 20 entries (10 compliant, 10 non-compliant).
 The is_compliant field is stripped from the payload sent to the API and used
 only as the expected value for assertion.
 
 Test IDs
 --------
 IDs are derived from the dataset itself so CI logs are immediately readable:
-    non_compliant-does_this_memory_allocation
-    compliant-is_this_function_misra
+    non_compliant-misra_c_2023-does_this_memory_allocation-a1b2c3
+    compliant-misra_cpp_2023-is_this_function_misra-d4e5f6
 
 Failure output
 --------------
@@ -33,6 +33,7 @@ On a verdict mismatch the assertion message includes:
     - cited_rules list
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -73,11 +74,21 @@ def _load_golden_cases() -> tuple[list[dict], list[str]]:
             }
         )
 
-        # Build a readable ID:  compliant-first_four_words_of_query
+        # Build a readable and unique ID: {verdict}-{standard}-{query_slug}-{hash}
         prefix = "compliant" if expected else "non_compliant"
-        words = entry["query"].lower().split()[:4]
-        slug = "_".join(w.strip(".,?!") for w in words)
-        ids.append(f"{prefix}-{slug}")
+
+        # Standard slug
+        std_slug = entry["standard"].lower().replace(" ", "_").replace(":", "")
+
+        # Query slug (first 5 words)
+        words = entry["query"].lower().split()[:5]
+        query_slug = "_".join(w.strip(".,?!()[]") for w in words)
+
+        # Hash of query + code_snippet to ensure uniqueness
+        fingerprint = f"{entry['query']}|{entry['code_snippet']}".encode()
+        short_hash = hashlib.md5(fingerprint).hexdigest()[:6]
+
+        ids.append(f"{prefix}-{std_slug}-{query_slug}-{short_hash}")
 
     return cases, ids
 
