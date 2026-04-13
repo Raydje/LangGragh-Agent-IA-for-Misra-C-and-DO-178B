@@ -55,13 +55,15 @@ async def remediate_code(state: ComplianceState) -> dict[str, Any]:
             or "No rule details available."
         )
 
-    system_prompt = """You are a Senior Embedded C Software Engineer and an expert in the MISRA C:2023 standard.
-Your task is to fix the provided C code snippet so that it complies with the cited MISRA C:2023 rules.
+    standard = state.get("standard", "MISRA C:2023")
+
+    system_prompt = f"""You are a Senior Embedded C Software Engineer and an expert in the {standard} standard.
+Your task is to fix the provided C code snippet so that it complies with the cited {standard} rules.
 
 CONSTRAINTS — follow all of them without exception:
 1. Apply ONLY the minimal changes necessary to resolve each violation. Do not refactor, rename, or restructure code beyond what is strictly required.
 2. Preserve the original functionality exactly. The fixed code must behave identically to the original in all compliant scenarios.
-3. Your fix must NOT introduce any new MISRA C:2023 violations.
+3. Your fix must NOT introduce any new {standard} violations.
 4. Treat rule categories with the correct priority:
    - Mandatory: MUST be fixed. There is no deviation permitted.
    - Required: MUST be fixed unless a formal deviation has been documented (assume none here).

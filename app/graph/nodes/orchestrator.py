@@ -18,12 +18,31 @@ class OrchestratorOutput(BaseModel):
 async def orchestrate(state: ComplianceState) -> dict[str, Any]:
     """
     Analyzes the user's query and code snippet to determine the workflow intent.
-    Currently focused entirely on MISRA C:2023 compliance.
     Updates the state with 'intent' and 'orchestrator_reasoning'.
     """
     query = state.get("query", "")
     code_snippet = state.get("code_snippet", "")
-    logger.info("Orchestrator_node", query=query, code_snippet=code_snippet)
+    standard = state.get("standard", "MISRA C:2023")
+    logger.info("Orchestrator_node", query=query, code_snippet=code_snippet, standard=standard)
+
+    # 1. Auto-fill query if code is present but query is missing
+    if code_snippet.strip() and not query.strip():
+        query = "verify this code against misra-c"
+
+    # 2. Short-circuit: code present → validate, skip LLM entirely
+    if code_snippet.strip():
+        logger.info("Orchestrator_node_shortcircuit", reason="code_snippet_present", query=query)
+        return {
+            "intent": "validate",
+            "query": query,  # update the query in state (might be the default one)
+            "orchestrator_reasoning": "Code snippet present; intent set to validate automatically.",
+            "standard": standard,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "orchestrator_tokens": 0,
+            "estimated_cost": 0.0,
+        }
 
     # Temperature is locked to 0.0 to prevent hallucinated intents and ensure
     # consistent, deterministic classification for identical queries.
@@ -34,15 +53,15 @@ async def orchestrate(state: ComplianceState) -> dict[str, Any]:
         [
             (
                 "system",
-                """You are the intelligent routing orchestrator for a C/C++ static analysis AI agent.
-        Your job is to analyze the user's request regarding the MISRA C:2023 standard and classify it into one of three intents:
+                f"""You are the intelligent routing orchestrator for a C/C++ static analysis AI agent.
+        Your job is to analyze the user's request regarding the {standard} standard and classify it into one of three intents:
 
-        1. "search": The user is looking for specific MISRA C:2023 rules, guidelines, or documentation.
-           (e.g., "Find rules about dead code", "What does MISRA say about pointer arithmetic?")
-        2. "validate": The user has provided C/C++ code and wants to check if it complies with MISRA C:2023 rules.
-           (e.g., "Check this C code snippet against MISRA C:2023", "Does this function violate any MISRA directives?")
-        3. "explain": The user wants a detailed, conceptual explanation of a specific MISRA C:2023 rule or why a practice is banned.
-           (e.g., "Explain why recursion is banned in MISRA", "What is the rationale behind rule 11.4?")
+        1. "search": The user is looking for specific {standard} rules, guidelines, or documentation.
+           (e.g., "Find rules about dead code", "What does {standard} say about pointer arithmetic?")
+        2. "validate": The user has provided C/C++ code and wants to check if it complies with {standard} rules.
+           (e.g., "Check this C code snippet against {standard}", "Does this function violate any {standard} directives?")
+        3. "explain": The user wants a detailed, conceptual explanation of a specific {standard} rule or why a practice is banned.
+           (e.g., "Explain why recursion is banned in {standard}", "What is the rationale behind rule 11.4?")
 
         Analyze the inputs carefully and output the intent and your reasoning.
         """,

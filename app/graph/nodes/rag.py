@@ -60,7 +60,7 @@ async def rag_node(state: ComplianceState, config: RunnableConfig) -> dict[str, 
 
             rule_entry: RetrievedRule = {
                 "rule_id": r_id,
-                "standard": "MISRA C:2023",  # Hardcoded for now
+                "standard": state.get("standard", "MISRA C:2023"),
                 "section": doc.get("section", ""),
                 "category": doc.get("category", "N/A"),
                 "title": doc.get("title", f"Rule {r_id}"),
