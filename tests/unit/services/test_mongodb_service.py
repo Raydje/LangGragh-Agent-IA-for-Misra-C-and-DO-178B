@@ -103,7 +103,7 @@ async def test_find_called_with_correct_or_conditions():
 
     call_filter = svc.collection.find.call_args[0][0]
     assert "$or" in call_filter
-    assert {"rule_type": "RULE", "section": 15, "rule_number": 1} in call_filter["$or"]
+    assert {"rule_type": "RULE", "section": 15, "rule_number": 1, "group": {"$exists": False}} in call_filter["$or"]
 
 
 @pytest.mark.asyncio

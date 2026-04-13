@@ -85,7 +85,14 @@ class MongoDBService:
                 else:
                     # 2-part C ID: MISRA_RULE_15.1
                     rule_number = int(m.group(3))
-                    or_conditions.append({"rule_type": rule_type, "section": section, "rule_number": rule_number})
+                    or_conditions.append(
+                        {
+                            "rule_type": rule_type,
+                            "section": section,
+                            "rule_number": rule_number,
+                            "group": {"$exists": False},
+                        }
+                    )
                     id_map[(rule_type, section, None, rule_number)] = rid
 
         if not or_conditions:
@@ -95,11 +102,15 @@ class MongoDBService:
             cursor = self.collection.find({"$or": or_conditions}, {"_id": 0})
             docs = await cursor.to_list(length=100)
 
+            valid_docs = []
             for doc in docs:
                 key = (doc.get("rule_type"), doc.get("section"), doc.get("group"), doc.get("rule_number"))
-                doc["rule_id"] = id_map.get(key, "")
+                rule_id = id_map.get(key, "")
+                if rule_id:
+                    doc["rule_id"] = rule_id
+                    valid_docs.append(doc)
 
-            return docs
+            return valid_docs
         except PyMongoError as exc:
             logger.error(
                 "MongoDB query failed in get_misra_rules_by_pinecone_ids",
