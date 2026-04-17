@@ -27,6 +27,9 @@ bruno_collection/
 pytest.ini
 get_all_model_available.py
 
+# Frontend
+frontend/
+
 # Build and coverage reports
 .coverage
 htmlcov/
