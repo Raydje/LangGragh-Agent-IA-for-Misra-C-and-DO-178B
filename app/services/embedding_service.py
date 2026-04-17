@@ -21,7 +21,7 @@ class EmbeddingService:
         if not rules:
             return 0
 
-        logger.info("Generating embeddings for {len(rules)} rules...", number_of_rules=len(rules))
+        logger.info("Generating embeddings for rules...", number_of_rules=len(rules))
 
         texts = [rule["full_text"] for rule in rules]
 

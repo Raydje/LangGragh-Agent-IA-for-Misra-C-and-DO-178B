@@ -13,6 +13,7 @@ A production-quality **multi-agent system** that parses MISRA C:2023 and MISRA C
 - **"Time Travel" debugging** via the `/replay` endpoint — fork and re-execute from any checkpoint in a session's history, essential for verifying complex MISRA C compliance logic where multiple agents (Orchestrator, RAG, Validator, Critique) interact across iterations.
 - **Per-request cost estimation** — every LLM-calling node tracks `prompt_tokens` and `completion_tokens` using LangGraph's `Annotated[int, operator.add]` state reducers, automatically accumulating totals across all agents. Each response includes an `estimated_cost` (USD) computed from a built-in pricing table covering 30+ Gemini models (`app/models_pricing.py`), giving full cost visibility without any external billing API.
 - **Configurable timeouts** — every external call (LLM, Pinecone, MongoDB) is wrapped in `asyncio.wait_for()` with individual configurable timeouts, ensuring graceful degradation instead of hanging requests.
+- **Interactive UI** — Includes a ready-to-use Streamlit frontend designed for quick testing and evaluation without needing to construct API payloads manually.
 
 ---
 
@@ -150,6 +151,9 @@ The **`ComplianceState`** TypedDict threads data across all nodes. Token and cos
 
 ```
 LangGraph-Agent-IA-for-Misra-C/
+├── frontend/                            # Streamlit UI for quick interactive testing
+│   ├── app.py
+│   └── requirement_frontend.txt
 ├── main.py                              # FastAPI app factory + lifespan (MongoDB checkpoint)
 ├── requirements.txt
 ├── pytest.ini
@@ -661,6 +665,17 @@ curl http://localhost:8000/api/v1/health
 ```
 
 Swagger UI is available at `http://localhost:8000/docs`.
+
+### 6. Start the Interactive UI (Optional)
+
+For a visual interface tailored for quick testing and evaluation:
+
+```bash
+pip install streamlit requests
+streamlit run frontend/app.py
+```
+
+The UI will be available at `http://localhost:8501`.
 
 ---
 
