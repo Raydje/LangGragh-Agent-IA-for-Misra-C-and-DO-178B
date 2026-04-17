@@ -76,9 +76,18 @@ with st.sidebar:
         email = st.text_input("Email", placeholder="email@example.com")
         password = st.text_input("Password", type="password", placeholder="••••••••")
 
+        admin_token = None
+        if auth_mode == "Register":
+            admin_token = st.text_input(
+                "Admin Token (optional)", type="password", placeholder="Leave blank for standard user"
+            )
+
         if st.button(auth_mode, use_container_width=True, type="primary"):
             if auth_mode == "Register":
-                res = requests.post(f"{BASE_URL}/auth/register", json={"email": email, "password": password})
+                payload = {"email": email, "password": password}
+                if admin_token:
+                    payload["admin_registration_token"] = admin_token
+                res = requests.post(f"{BASE_URL}/auth/register", json=payload)
                 if res.status_code == 201:
                     st.success("Registered! Please login.")
                 else:
@@ -100,7 +109,7 @@ with st.sidebar:
                 st.caption("🟢 Backend: Online")
             else:
                 st.caption("🟡 Backend: Degraded")
-        except:
+        except Exception:
             st.caption("🔴 Backend: Offline")
 
         if st.button("Logout", use_container_width=True):
@@ -109,7 +118,8 @@ with st.sidebar:
 
         st.markdown("---")
         menu = st.radio(
-            "Navigation", ["Code Validator", "Session History", "Time-Travel Replay", "Admin: Seed & Ingest"]
+            "Navigation",
+            ["Code Validator", "Session History", "My Usage", "Time-Travel Replay", "Admin: Seed & Ingest"],
         )
 
 # --- MAIN CONTENT ---
@@ -124,12 +134,18 @@ if menu == "Code Validator":
 
     # Main Input Area
     with st.container():
-        col_q, col_s = st.columns([3, 1])
+        col_q, col_std, col_s = st.columns([3, 1, 1])
         with col_q:
             query = st.text_input(
                 "Compliance Query",
                 value="Analyze this code for MISRA compliance.",
                 help="Specify what you want the agents to focus on (e.g., 'Is this memory compliant?', 'Check for Rule 12.1')",
+            )
+        with col_std:
+            standard = st.selectbox(
+                "Standard",
+                options=["MISRA C:2023", "MISRA C++:2023"],
+                help="Select the compliance standard to validate against.",
             )
         with col_s:
             use_thread = st.toggle("Continue Session", value=False, help="Resume from the last known state (Thread ID)")
@@ -141,7 +157,7 @@ if menu == "Code Validator":
                 st.warning("Please provide a code snippet to analyze.")
             else:
                 with st.spinner("Agents are critiquing your code..."):
-                    payload = {"query": query, "code_snippet": code_snippet}
+                    payload = {"query": query, "code_snippet": code_snippet, "standard": standard}
                     if use_thread and st.session_state["thread_id"]:
                         payload["thread_id"] = st.session_state["thread_id"]
 
@@ -185,6 +201,21 @@ if menu == "Code Validator":
                                 else:
                                     st.subheader("🛠️ Remediation")
                                     st.success("No code changes suggested.")
+
+                            # Token usage & cost
+                            usage = data.get("total_tokens_usage") or {}
+                            st.divider()
+                            st.subheader("📊 Token Usage & Cost")
+                            u_col1, u_col2, u_col3, u_col4 = st.columns(4)
+                            u_col1.metric("Prompt Tokens", usage.get("prompt_tokens", "—"))
+                            u_col2.metric("Completion Tokens", usage.get("completion_tokens", "—"))
+                            u_col3.metric("Total Tokens", usage.get("total_tokens", "—"))
+                            u_col4.metric(
+                                "Estimated Cost",
+                                f"${usage.get('estimated_cost', 0):.6f}"
+                                if usage.get("estimated_cost") is not None
+                                else "—",
+                            )
                         else:
                             st.error(f"Analysis failed ({res.status_code}): {res.text}")
                     except Exception as e:
@@ -193,16 +224,52 @@ if menu == "Code Validator":
 elif menu == "Session History":
     st.title("📜 Session History")
     active_id = st.session_state["thread_id"]
-    if active_id:
-        st.info(f"Active Thread: `{active_id}`")
-        if st.button("Fetch History", type="primary"):
-            res = requests.get(f"{BASE_URL}/history/{active_id}", headers=get_headers())
+    default_id = active_id or ""
+    thread_input = st.text_input("Thread ID", value=default_id, placeholder="Enter a thread ID to query")
+    if active_id and active_id == thread_input:
+        st.caption("Using active session thread.")
+
+    if st.button("Fetch History", type="primary"):
+        if not thread_input:
+            st.warning("Please enter a Thread ID.")
+        else:
+            res = requests.get(f"{BASE_URL}/history/{thread_input}", headers=get_headers())
             if res.status_code == 200:
                 st.json(res.json())
             else:
-                st.error("Failed to fetch history.")
-    else:
-        st.warning("No active thread ID. Please run an analysis first.")
+                st.error(f"Failed to fetch history ({res.status_code}).")
+
+elif menu == "My Usage":
+    st.title("📈 My Usage")
+    st.markdown("View your cumulative token consumption and cost across all queries.")
+
+    if st.button("Fetch My Usage", type="primary"):
+        res = requests.get(f"{BASE_URL}/usage", headers=get_headers())
+        if res.status_code == 200:
+            udata = res.json()
+            u_col1, u_col2, u_col3 = st.columns(3)
+            u_col1.metric("Total Requests", udata.get("total_requests", "—"))
+            u_col2.metric("Total Cost", f"${udata.get('total_cost', 0):.6f}")
+            u_col3.metric("User", udata.get("email") or udata.get("user_id", "—"))
+
+            logs = udata.get("recent_logs", [])
+            if logs:
+                st.divider()
+                st.subheader("Recent Activity")
+                for entry in logs:
+                    with st.expander(
+                        f"{entry.get('timestamp', '')} — {entry.get('endpoint', '')} ({entry.get('status_code', '')})",
+                        expanded=False,
+                    ):
+                        l_col1, l_col2, l_col3, l_col4 = st.columns(4)
+                        l_col1.metric("Prompt Tokens", entry.get("prompt_tokens", "—"))
+                        l_col2.metric("Completion Tokens", entry.get("completion_tokens", "—"))
+                        l_col3.metric("Total Tokens", entry.get("total_tokens", "—"))
+                        l_col4.metric("Cost", f"${entry.get('estimated_cost', 0):.6f}")
+                        if entry.get("thread_id"):
+                            st.caption(f"Thread: `{entry['thread_id']}`")
+        else:
+            st.error(f"Failed to fetch usage ({res.status_code}): {res.text}")
 
 elif menu == "Time-Travel Replay":
     st.title("⏪ Time Travel Debugging")
