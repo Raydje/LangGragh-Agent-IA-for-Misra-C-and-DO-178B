@@ -589,7 +589,7 @@ A manually triggered (**workflow_dispatch**) suite designed for deep validation 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/<your-username>/LangGragh-Agent-IA-for-Misra-C.git
+git clone https://github.com/Raydje/LangGragh-Agent-IA-for-Misra-C.git
 cd LangGragh-Agent-IA-for-Misra-C
 pip install -r requirements.txt
 ```
